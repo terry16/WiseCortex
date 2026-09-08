@@ -384,23 +384,27 @@ pub fn config_path() -> Option<PathBuf> {
 
 /// 旧品牌（WiseClaw）的目录名。仅用于一次性迁移，不再写入。
 const LEGACY_DIR: &str = "wiseclaw";
+const CURRENT_DIR: &str = "wisecortex";
 
 /// 把旧品牌目录整体迁到新目录：仅在「新目录不存在且旧目录存在」时执行一次。
 ///
 /// 改名 WiseClaw → WiseCortex 后，老用户的 config/sessions/skills/workspace 都还在
 /// `.../wiseclaw/` 下。这里做一次搬迁（rename，同盘零拷贝），失败则退回逐项复制；
 /// 两者都失败就静默放弃——大不了当新装用户，不能让启动因此挂掉。
-fn migrate_legacy_dir(base: &std::path::Path) {
+///
+/// 返回是否实际执行了迁移，便于日志与测试断言。
+fn migrate_legacy_dir(base: &std::path::Path) -> bool {
     let old = base.join(LEGACY_DIR);
-    let new = base.join("wisecortex");
+    let new = base.join(CURRENT_DIR);
+    // 新目录已存在说明要么早迁过、要么本就是新装，一律不动——绝不覆盖现有数据。
     if !old.is_dir() || new.exists() {
-        return;
+        return false;
     }
     if std::fs::rename(&old, &new).is_ok() {
-        return;
+        return true;
     }
-    // 跨卷或被占用时 rename 会失败，退化为复制（不删旧目录，保留回滚余地）。
-    let _ = copy_dir_all(&old, &new);
+    // 跨卷或被占用时 rename 会失败，退化为复制（保留旧目录，留回滚余地）。
+    copy_dir_all(&old, &new).is_ok()
 }
 
 fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
@@ -417,17 +421,28 @@ fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result
     Ok(())
 }
 
-/// 启动时调用一次：迁移配置目录与数据目录下的旧品牌残留。
+/// 启动时调用一次：迁移旧品牌目录。
+///
+/// 需要覆盖三个 base——config_dir / data_dir / home_dir（Linux 的 workspace 落在家目录）。
+/// 三者在部分平台会重合（macOS 上 config_dir == data_dir），故先去重再逐个处理，
+/// 否则第二次调用会看到「新目录已存在」而空转，或在极端情况下重复拷贝。
 pub fn migrate_legacy_dirs() {
-    if let Some(d) = dirs::config_dir() {
-        migrate_legacy_dir(&d);
+    let mut bases: Vec<PathBuf> = Vec::new();
+    for d in [dirs::config_dir(), dirs::data_dir(), dirs::home_dir()]
+        .into_iter()
+        .flatten()
+    {
+        if !bases.contains(&d) {
+            bases.push(d);
+        }
     }
-    if let Some(d) = dirs::data_dir() {
-        migrate_legacy_dir(&d);
-    }
-    if cfg!(target_os = "linux") {
-        if let Some(d) = dirs::home_dir() {
-            migrate_legacy_dir(&d);
+    for b in bases {
+        if migrate_legacy_dir(&b) {
+            crate::sprintln!(
+                "已迁移旧版配置目录：{} → {}",
+                b.join(LEGACY_DIR).display(),
+                b.join(CURRENT_DIR).display()
+            );
         }
     }
 }
@@ -702,6 +717,56 @@ mod tests {
             assert!(p.ends_with("workspace"));
             assert!(p.parent().unwrap().ends_with("wisecortex"));
         }
+    }
+
+    // ── 旧品牌目录迁移（WiseClaw → WiseCortex）─────────────────────────────
+    // 这条路径只在老用户升级时跑一次，出错就意味着「配置全丢」，必须锁死行为。
+
+    #[test]
+    fn legacy_dir_is_moved_when_target_is_absent() {
+        let base = std::env::temp_dir().join(format!("wc-mig-move-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let old = base.join("wiseclaw");
+        std::fs::create_dir_all(old.join("sessions")).unwrap();
+        std::fs::write(old.join("config.json"), b"{\"access_key\":\"k\"}").unwrap();
+        std::fs::write(old.join("sessions").join("a.json"), b"{}").unwrap();
+
+        assert!(migrate_legacy_dir(&base), "应报告已迁移");
+
+        let new = base.join("wisecortex");
+        assert!(new.join("config.json").is_file(), "配置文件要跟着搬过来");
+        assert!(
+            new.join("sessions").join("a.json").is_file(),
+            "子目录也要搬"
+        );
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn existing_target_is_never_clobbered() {
+        // 新目录已有数据时必须原地不动——否则升级会覆盖用户当前配置。
+        let base = std::env::temp_dir().join(format!("wc-mig-keep-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(base.join("wiseclaw")).unwrap();
+        std::fs::write(base.join("wiseclaw").join("config.json"), b"OLD").unwrap();
+        std::fs::create_dir_all(base.join("wisecortex")).unwrap();
+        std::fs::write(base.join("wisecortex").join("config.json"), b"NEW").unwrap();
+
+        assert!(!migrate_legacy_dir(&base), "目标已存在时不应迁移");
+
+        let kept = std::fs::read(base.join("wisecortex").join("config.json")).unwrap();
+        assert_eq!(kept, b"NEW", "现有配置不能被旧数据覆盖");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn missing_legacy_dir_is_a_noop() {
+        let base = std::env::temp_dir().join(format!("wc-mig-none-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).unwrap();
+        assert!(!migrate_legacy_dir(&base), "没有旧目录时什么都不做");
+        assert!(!base.join("wisecortex").exists(), "不应凭空建出新目录");
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]
