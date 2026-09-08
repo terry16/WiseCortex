@@ -429,7 +429,7 @@ export const ko = {
   "settings.modal.baseHintCompat":
     "OpenAI 호환 엔드포인트 — 직접 입력하세요, 예: http://localhost:8000/v1",
   "settings.modal.modelHintPreset":
-    "원하는 모델 ID를 직접 입력할 수 있습니다. 목록은 이 제공자의 주요 모델 참고용입니다.",
+    "클릭하면 주요 모델 목록이 열립니다. 원하는 모델 ID를 직접 입력할 수도 있습니다.",
   "settings.modal.modelHintCompat": "OpenAI 호환 API — 모델 ID를 수동으로 입력하세요.",
   "settings.modal.needEndpoint": "Endpoint를 입력하세요",
   "settings.modal.needModel": "Model ID를 선택 / 입력하세요",

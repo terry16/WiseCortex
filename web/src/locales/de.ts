@@ -447,7 +447,7 @@ export const de = {
   "settings.modal.baseHintCompat":
     "OpenAI-kompatibler Endpunkt — selbst eingeben, z. B. http://localhost:8000/v1",
   "settings.modal.modelHintPreset":
-    "Beliebige Modell-ID direkt eingeben — die Liste zeigt nur gängige Modelle dieses Anbieters.",
+    "Klicken für gängige Modelle, oder beliebige Modell-ID direkt eingeben.",
   "settings.modal.modelHintCompat": "OpenAI-kompatible API — Modell-ID manuell eingeben.",
   "settings.modal.needEndpoint": "Bitte den Endpoint eingeben",
   "settings.modal.needModel": "Bitte die Model ID wählen / eingeben",

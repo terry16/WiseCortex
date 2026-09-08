@@ -409,7 +409,7 @@ export const zhTW = {
   "settings.modal.test": "測試連線",
   "settings.modal.baseHintPreset": "已填入預設端點，可改成反代或自建閘道位址",
   "settings.modal.baseHintCompat": "OpenAI 相容端點，請自填，如 http://localhost:8000/v1",
-  "settings.modal.modelHintPreset": "可直接輸入任意模型 ID；下拉裡是該提供商的常見機型，僅作參考。",
+  "settings.modal.modelHintPreset": "點擊可展開常見機型清單，也可直接輸入任意模型 ID。",
   "settings.modal.modelHintCompat": "OpenAI 相容介面，請手動填寫模型 ID。",
   "settings.modal.needEndpoint": "請填寫 Endpoint",
   "settings.modal.needModel": "請選擇 / 填寫 Model ID",

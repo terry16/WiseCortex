@@ -434,7 +434,7 @@ export const ja = {
   "settings.modal.baseHintCompat":
     "OpenAI 互換エンドポイント。自分で入力してください。例：http://localhost:8000/v1",
   "settings.modal.modelHintPreset":
-    "任意のモデル ID を直接入力できます。リストはこのプロバイダーの主なモデルの参考表示です。",
+    "クリックすると主なモデルを一覧表示します。任意のモデル ID を直接入力することもできます。",
   "settings.modal.modelHintCompat": "OpenAI 互換 API。モデル ID を手動で入力してください。",
   "settings.modal.needEndpoint": "Endpoint を入力してください",
   "settings.modal.needModel": "Model ID を選択 / 入力してください",

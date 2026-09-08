@@ -409,7 +409,7 @@ export const zhCN = {
   "settings.modal.test": "测试连接",
   "settings.modal.baseHintPreset": "已填入预设端点，可改成反代或自建网关地址",
   "settings.modal.baseHintCompat": "OpenAI 兼容端点，请自填，如 http://localhost:8000/v1",
-  "settings.modal.modelHintPreset": "可直接输入任意模型 ID；下拉里是该提供商的常见机型，仅作参考。",
+  "settings.modal.modelHintPreset": "点击可展开常见机型清单，也可直接输入任意模型 ID。",
   "settings.modal.modelHintCompat": "OpenAI 兼容接口，请手动填写模型 ID。",
   "settings.modal.needEndpoint": "请填写 Endpoint",
   "settings.modal.needModel": "请选择 / 填写 Model ID",

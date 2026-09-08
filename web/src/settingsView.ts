@@ -6,6 +6,7 @@
 
 import { authHeaders, setKey } from "./auth";
 import { httpBase } from "./backend";
+import { createCombobox } from "./combobox";
 import { LOCALES, getLocale, switchLocale, t } from "./i18n";
 import { icon } from "./icons";
 import { copyText, isTauri, openExternal, pickDirectory } from "./platform";
@@ -1273,8 +1274,7 @@ export function mountSettingsView(container: HTMLElement): { refresh: () => void
           </div>
           <div class="field">
             <label>Model ID</label>
-            <input id="m-model-txt" class="input mono" list="m-model-list" placeholder="your-model-name" autocomplete="off" />
-            <datalist id="m-model-list"></datalist>
+            <div id="m-model-slot"></div>
             <div class="hint" id="m-model-hint"></div>
           </div>
           <div class="field">
@@ -1341,8 +1341,6 @@ export function mountSettingsView(container: HTMLElement): { refresh: () => void
     const q = <T extends HTMLElement>(s: string) => overlay.querySelector(s) as T;
     const prov = q<HTMLSelectElement>("#m-prov");
     const base = q<HTMLInputElement>("#m-base");
-    const modelTxt = q<HTMLInputElement>("#m-model-txt");
-    const modelList = q<HTMLDataListElement>("#m-model-list");
     const baseHint = q("#m-base-hint");
     const modelHint = q("#m-model-hint");
     prov.innerHTML = providers
@@ -1350,7 +1348,14 @@ export function mountSettingsView(container: HTMLElement): { refresh: () => void
       .join("");
 
     const isCompatNow = (): boolean => prov.value === "openai-compatible";
-    const currentModel = (): string => modelTxt.value.trim();
+    // 可选可填：展开是完整机型清单，也能直接敲清单外的新模型 ID。
+    const modelBox = createCombobox({
+      items: [],
+      placeholder: "your-model-name",
+      onChange: () => syncVisionDefault(),
+    });
+    q("#m-model-slot").appendChild(modelBox.el);
+    const currentModel = (): string => modelBox.value();
 
     function applyProvider(initial?: boolean): void {
       const p = providers.find((x) => x.id === prov.value);
@@ -1362,17 +1367,15 @@ export function mountSettingsView(container: HTMLElement): { refresh: () => void
         savedBaseUrl: row?.base_url,
       });
       // 端点与模型 ID **始终可编辑**：模型迭代太快，写死清单就得跟着发版；
-      // 反代 / 自建网关 / 区域端点也都要能改。预设值只作初值与 datalist 建议。
+      // 反代 / 自建网关 / 区域端点也都要能改。
       base.value = st.baseUrl;
       base.readOnly = false;
       base.classList.remove("locked");
       baseHint.textContent = isCompat
         ? t("settings.modal.baseHintCompat")
         : t("settings.modal.baseHintPreset");
-      modelTxt.value = st.model;
-      modelList.innerHTML = st.suggestions
-        .map((m) => `<option value="${esc(m)}"></option>`)
-        .join("");
+      modelBox.setItems(st.suggestions);
+      modelBox.setValue(st.model);
       modelHint.textContent =
         st.suggestions.length > 0
           ? t("settings.modal.modelHintPreset")
@@ -1406,12 +1409,11 @@ export function mountSettingsView(container: HTMLElement): { refresh: () => void
 
     prov.addEventListener("change", () => applyProvider());
     // 切换模型时按视觉清单重置 vision 默认（用户随后仍可手动改）。
-    const syncVisionDefault = (): void => {
+    // 用函数声明而非 const：combobox 的 onChange 在它之前就引用了它，靠提升。
+    function syncVisionDefault(): void {
       const p = providers.find((x) => x.id === prov.value);
       q<HTMLInputElement>("#m-vision").checked = !!p?.vision_models?.includes(currentModel());
-    };
-    modelTxt.addEventListener("input", syncVisionDefault);
-    modelTxt.addEventListener("change", syncVisionDefault);
+    }
 
     // 测试连接：用当前表单值发一条极小请求，验证模型可用（不保存）。
     q<HTMLButtonElement>("#m-test").addEventListener("click", async () => {
@@ -1448,7 +1450,12 @@ export function mountSettingsView(container: HTMLElement): { refresh: () => void
       }
     });
 
-    const close = () => overlay.remove();
+    // 关闭时一并销毁 combobox：它的浮层挂在 body 上、还注册了全局监听，
+    // 只 remove overlay 会把它们留下（下次开弹窗就多一层幽灵浮层）。
+    const close = () => {
+      modelBox.destroy();
+      overlay.remove();
+    };
     q("#m-cancel").addEventListener("click", close);
     // 真·模态：**不**做「点遮罩关闭」。本弹窗是要填 provider/端点/模型/Key 的表单，误关就全丢。
     // 尤其：在输入框里按住拖选文字、拖到框外松手时，click 的 target 会变成遮罩 —— 于是「鼠标一划出

@@ -433,8 +433,7 @@ export const en = {
     "Preset endpoint filled in — edit it to point at a proxy or self-hosted gateway",
   "settings.modal.baseHintCompat":
     "OpenAI-compatible endpoint — enter it yourself, e.g. http://localhost:8000/v1",
-  "settings.modal.modelHintPreset":
-    "Type any model ID — the dropdown lists this provider's common models for reference only.",
+  "settings.modal.modelHintPreset": "Click to browse common models, or type any model ID directly.",
   "settings.modal.modelHintCompat": "OpenAI-compatible API — enter the model ID manually.",
   "settings.modal.needEndpoint": "Please enter the Endpoint",
   "settings.modal.needModel": "Please select / enter the Model ID",

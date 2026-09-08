@@ -530,6 +530,69 @@ select {
   background: var(--surface-3);
   color: var(--text-3);
 }
+/* 可选可填的下拉框：输入框 + 右侧箭头，浮层挂 body 用 fixed 定位。 */
+.cbx {
+  position: relative;
+  display: flex;
+}
+.cbx .cbx-input {
+  flex: 1;
+  min-width: 0;
+  padding-right: 30px; /* 给箭头让位 */
+}
+.cbx-caret {
+  position: absolute;
+  right: 1px;
+  top: 1px;
+  bottom: 1px;
+  width: 28px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-3);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+.cbx-caret::after {
+  content: "";
+  display: block;
+  width: 7px;
+  height: 7px;
+  margin: 0 auto;
+  border-right: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+}
+.cbx-caret:hover {
+  color: var(--text);
+}
+.cbx-pop {
+  position: fixed;
+  z-index: 80; /* 高于 .overlay(60)，否则被弹窗盖住 */
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-lg);
+  padding: 4px;
+}
+.cbx-opt {
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cbx-opt:hover,
+.cbx-opt.active {
+  background: var(--surface-3);
+}
+.cbx-opt.sel {
+  color: var(--accent);
+  font-weight: 600;
+}
 .input-affix {
   display: inline-flex;
   align-items: center;
