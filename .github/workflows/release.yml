@@ -108,13 +108,26 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: npx tauri build --target ${{ matrix.target }}
 
-      # 装订公证票据：装订后用户离线首次打开也不会被 Gatekeeper 拦。
-      - name: Staple notarization ticket (macOS)
+      # Tauri 只公证 .app，dmg 是 .app 公证完之后才打的，因此 dmg 自身没有公证记录
+      # （直接 staple 会 "Record not found"）。这里把 dmg 单独送一次公证再装订：
+      # 用户下载的是 dmg，装订后首次打开无需联网校验。
+      - name: Notarize and staple DMG (macOS)
         if: runner.os == 'macOS' && env.APPLE_API_KEY_ID != ''
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: |
-          for f in $(find target/${{ matrix.target }}/release/bundle -name "*.dmg"); do
-            xcrun stapler staple "$f" && xcrun stapler validate "$f"
-            spctl -a -vvv -t install "$f" 2>&1 | tail -3
+          set -euo pipefail
+          shopt -s nullglob
+          for f in target/${{ matrix.target }}/release/bundle/dmg/*.dmg; do
+            xcrun notarytool submit "$f" --wait --timeout 30m \
+              --key "$APPLE_API_KEY_PATH" \
+              --key-id "$APPLE_API_KEY_ID" \
+              --issuer "$APPLE_API_ISSUER"
+            xcrun stapler staple "$f"
+            xcrun stapler validate "$f"
+            # 装订生效的判据：source 必须是 "Notarized Developer ID"。
+            spctl -a -vvv -t install "$f" 2>&1 | tee /tmp/spctl.txt
+            grep -q "source=Notarized Developer ID" /tmp/spctl.txt
           done
 
       # 打包裸二进制，方便不想装 GUI 的用户直接取用。
