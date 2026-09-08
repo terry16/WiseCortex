@@ -1,0 +1,96 @@
+{
+  "_说明": [
+    "这是「提供商-模型表」的外置覆盖文件示例。LLM 模型更新频繁，可在此维护而无需重新编译。",
+    "用法：复制本文件为 providers.json，放到配置目录下（与 config.json 同级），编辑后重启服务端生效。",
+    "  Windows: %APPDATA%\\wisecortex\\providers.json",
+    "  macOS:   ~/Library/Application Support/wisecortex/providers.json",
+    "  Linux:   ~/.config/wisecortex/providers.json",
+    "合并规则：按 id 匹配内置预设——给出的字段覆盖内置；models 给出即【整表替换】该提供商的模型列表；",
+    "新 id 则作为新提供商加入。文件缺失或损坏时纯用内置预设，开箱即用。",
+    "（JSON 不支持注释，本字段仅作说明，会被安全忽略。format 取值：openai | anthropic。）",
+    "vision_models（支持图片输入的模型白名单，给出即整表替换）：【保守策略】只有列在这里的模型才会被发图；",
+    "  未登记的模型一律按【不支持图片】处理——发送前自动剥离图片并替换为文字占位，避免给 deepseek-v4 这类",
+    "  纯文本模型发 image 块被打回 4xx（用户截图工具自动抓的图也照此降级）。接入新视觉模型时记得登记进来。",
+    "thinking 取值（深度思考参数怎么发，仅 openai 线缆生效）：",
+    "  reasoning_effort        = 发 reasoning_effort:<low|medium|high|xhigh|max>（OpenAI o 系列 / Gemini 兼容）",
+    "  enable_thinking         = 发 enable_thinking:true（千问 / 混元 等混合思考模型）",
+    "  thinking_enabled_effort = 发 thinking:{type:enabled} + reasoning_effort:<level>（DeepSeek V4）",
+    "  reasoning_effort_minimal= 发 reasoning_effort:<minimal|low|medium|high>，关闭=minimal（火山引擎/豆包）",
+    "  thinking_object_toggle  = 发 thinking:{type:enabled|disabled} 开关，无强度档（Moonshot/Kimi K2）",
+    "  none                    = 不发思考参数（思考内置或不支持）"
+  ],
+  "providers": [
+    {
+      "id": "hunyuan",
+      "name": "腾讯混元 (OpenAI 兼容)",
+      "base_url": "https://tokenhub.tencentmaas.com/v1",
+      "format": "openai",
+      "thinking": "reasoning_effort",
+      "default_model": "hy3-preview",
+      "models": ["hy3-preview"],
+      "vision_models": []
+    },
+    {
+      "id": "anthropic",
+      "name": "Anthropic (Claude)",
+      "base_url": "https://api.anthropic.com",
+      "format": "anthropic",
+      "default_model": "claude-sonnet-4-6",
+      "models": [
+        "claude-opus-5",
+        "claude-opus-4-8",
+        "claude-opus-4-7",
+        "claude-sonnet-4-6",
+        "claude-haiku-4-5"
+      ],
+      "vision_models": [
+        "claude-opus-5",
+        "claude-opus-4-8",
+        "claude-opus-4-7",
+        "claude-sonnet-4-6",
+        "claude-haiku-4-5"
+      ]
+    },
+    {
+      "id": "openai",
+      "name": "OpenAI (GPT)",
+      "base_url": "https://api.openai.com/v1",
+      "format": "openai",
+      "default_model": "gpt-5.6-sol",
+      "models": [
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
+        "gpt-5.5",
+        "gpt-5.4",
+        "gpt-5.4-mini",
+        "o4-mini",
+        "o3"
+      ],
+      "vision_models": [
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
+        "gpt-5.5",
+        "gpt-5.4",
+        "gpt-5.4-mini",
+        "o4-mini",
+        "o3"
+      ]
+    },
+    {
+      "id": "deepseek",
+      "models": ["deepseek-v4-pro", "deepseek-v4-flash"],
+      "_注": "deepseek 现有模型均不支持图片；不写 vision_models 即默认全部按纯文本处理。"
+    },
+    {
+      "id": "my-gateway",
+      "name": "我的自建网关",
+      "base_url": "http://localhost:8000/v1",
+      "format": "openai",
+      "default_model": "local-7b",
+      "models": ["local-7b", "local-70b", "local-vl"],
+      "vision_models": ["local-vl"]
+    }
+  ]
+}

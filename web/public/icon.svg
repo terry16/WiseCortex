@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <defs>
+    <linearGradient id="porcelain" x1="0" y1="0" x2="0.55" y2="1">
+      <stop offset="0" stop-color="#3E5F94"/>
+      <stop offset="0.5" stop-color="#2B4370"/>
+      <stop offset="1" stop-color="#1D2F52"/>
+    </linearGradient>
+    <radialGradient id="glaze" cx="0.3" cy="0.08" r="1.05">
+      <stop offset="0" stop-color="#CFE0F4" stop-opacity="0.3"/>
+      <stop offset="0.6" stop-color="#CFE0F4" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#CFE0F4" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ink" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#FDFCF8"/>
+      <stop offset="1" stop-color="#E3E0D4"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.32"/>
+      <stop offset="0.35" stop-color="#FFFFFF" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="tile">
+      <rect x="0.4" y="0.4" width="23.2" height="23.2" rx="5.8"/>
+    </clipPath>
+  </defs>
+
+  <rect x="0.4" y="0.4" width="23.2" height="23.2" rx="5.8" fill="url(#porcelain)"/>
+  <g clip-path="url(#tile)" fill="none" stroke="#101D38" stroke-opacity="0.2" stroke-linecap="round">
+    <path d="M0 7.4 C5 6.4 9 8.2 14 7.1 S21 6.2 24 7.4" stroke-width="0.26"/>
+    <path d="M0 16.8 C5 15.8 9 17.6 14 16.5 S21 15.6 24 16.8" stroke-width="0.22"/>
+  </g>
+  <rect x="0.4" y="0.4" width="23.2" height="23.2" rx="5.8" fill="url(#glaze)"/>
+  <rect x="0.47" y="0.47" width="23.06" height="23.06" rx="5.73" fill="none"
+        stroke="url(#rim)" stroke-width="0.12"/>
+
+  <!-- 方案B：神经节点星丛——中心枢纽 + 六向连接，正面表达“智能体网络” -->
+  <g stroke="url(#ink)" stroke-width="1.05" stroke-linecap="round" opacity="0.9">
+    <line x1="12" y1="12" x2="12" y2="6.6"/>
+    <line x1="12" y1="12" x2="16.7" y2="9.3"/>
+    <line x1="12" y1="12" x2="16.7" y2="14.7"/>
+    <line x1="12" y1="12" x2="12" y2="17.4"/>
+    <line x1="12" y1="12" x2="7.3" y2="14.7"/>
+    <line x1="12" y1="12" x2="7.3" y2="9.3"/>
+  </g>
+  <g fill="url(#ink)">
+    <!-- 中心枢纽 -->
+    <circle cx="12" cy="12" r="2.5"/>
+    <!-- 六个卫星节点，大小交替产生节奏 -->
+    <circle cx="12" cy="6.2" r="1.5"/>
+    <circle cx="17.0" cy="9.1" r="1.15"/>
+    <circle cx="17.0" cy="14.9" r="1.5"/>
+    <circle cx="12" cy="17.8" r="1.15"/>
+    <circle cx="7.0" cy="14.9" r="1.5"/>
+    <circle cx="7.0" cy="9.1" r="1.15"/>
+  </g>
+</svg>

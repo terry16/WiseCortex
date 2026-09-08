@@ -1,0 +1,15 @@
+[
+  {
+    "_说明": "把本文件复制为 registry-sources.json 放到数据目录，可在「市场」源下拉里追加自定义源。",
+    "_路径": "Windows %APPDATA%\\wisecortex\\ · macOS ~/Library/Application Support/wisecortex/ · Linux ~/.local/share/wisecortex/",
+    "_字段": "label 显示名；url 源地址；kind = static（静态 JSON 数组）| clawhub（ClawHub 兼容 API）。按 url 去重追加到内置精选源后。",
+    "label": "（示例）公司内网技能源",
+    "url": "https://skills.example.com/registry.json",
+    "kind": "static"
+  },
+  {
+    "label": "（示例）自建 ClawHub 镜像",
+    "url": "https://clawhub.internal.example.com",
+    "kind": "clawhub"
+  }
+]

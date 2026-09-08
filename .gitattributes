@@ -1,0 +1,12 @@
+* text=auto eol=lf
+
+# Windows 批处理必须保持 CRLF。上面那条 eol=lf 会把 .bat 也一起规范化成 LF——
+# 而 cmd.exe 解析 LF-only 的批处理并不可靠（goto/标签这类按字节定位的地方尤其），
+# build-windows.bat 里正好有 goto 标签。仓库里现存的 .bat 之所以一直没事，
+# 只是因为它的 blob 早年就是带 CRLF 提交进去的，下一次改动就会被规范化掉。
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.png binary
+*.jpg binary
+*.woff2 binary
+*.ico binary

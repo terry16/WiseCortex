@@ -1,0 +1,21 @@
+[package]
+name = "wisecortex-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "wisecortex"
+path = "src/main.rs"
+
+[dependencies]
+wisecortex-core.workspace = true
+clap.workspace = true
+# wisecortex tui：终端瘦客户端，连本机 wisecortex-server 的 /ws（复用 core 的 proto 协议模型）。
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+futures-util.workspace = true
+crossterm.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true

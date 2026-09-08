@@ -1,0 +1,12 @@
+# 锁定工具链版本。
+#
+# 之前 CI 用 rustup 的 `stable`，新版本一发布就自动跟上：1.98 加了个
+# chunks_exact_to_as_chunks lint，在没有任何人改代码的情况下把 CI 打红了，
+# 而本地还停在旧 stable，怎么跑都是绿的——排查成本全花在「本地过了 CI 为什么挂」上。
+#
+# 锁死之后升级变成主动行为：改这里的版本号，本地把 fmt / clippy / test 跑通再提交。
+# rustup 会自动下载这个版本，贡献者不需要手动切。
+[toolchain]
+channel = "1.98.0"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

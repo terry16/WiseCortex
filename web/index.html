@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- favicon：三件套，都是同款设计（青花瓷釉底 + 神经星丛 + 贴边细高光，源文件 web/public/icon.svg）。
+         · favicon.ico —— 必须有，且必须在站点根目录：浏览器不看 HTML 也会自己去要
+           /favicon.ico（书签、历史记录、Safari、企业内网旧浏览器）。缺了就 404 → 显示默认地球。
+         · SVG（public/icon.svg）—— 现代浏览器优先用它，矢量任意缩放且免一次请求；
+           同时被界面里品牌位（brand-mark / hero-mark / login-logo）当背景图引用。
+         · apple-touch-icon —— iOS「添加到主屏幕」用。
+         三个文件都由 desktop/src-tauri/icons/ 同一套源生成，改图标记得一起换。 -->
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <!-- 防闪烁：CSS 解析前先按上次选择/系统偏好落好 data-theme，避免暗色用户看到一闪瓷白。 -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("wc-theme");
+          if (t !== "dark" && t !== "light") {
+            t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          }
+          document.documentElement.dataset.theme = t;
+        } catch (e) {}
+      })();
+    </script>
+    <title>WiseCortex</title>
+  </head>
+  <body>
+    <div id="offline-banner" style="display: none" data-i18n="offline.banner"></div>
+    <div class="app">
+      <aside class="rail">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true"></div>
+          <div>
+            <div class="brand-name">WiseCortex</div>
+            <div class="brand-sub" data-i18n="brand.sub">自托管 AI Agent</div>
+          </div>
+        </div>
+        <button id="btn-new-task" class="new-task"><span data-icon="plus"></span><span data-i18n="nav.newTask">新建任务</span></button>
+        <button class="nav-item active" data-view="chat"><span class="nav-ico" data-icon="chat"></span><span data-i18n="nav.chat">对话</span></button>
+        <button class="nav-item" data-view="tasks"><span class="nav-ico" data-icon="clock"></span><span data-i18n="nav.tasks">定时任务</span></button>
+        <button class="nav-item" data-view="jobs"><span class="nav-ico" data-icon="bolt"></span><span data-i18n="nav.jobs">后台任务</span></button>
+        <button class="nav-item" data-view="skills"><span class="nav-ico" data-icon="skill"></span><span data-i18n="nav.skills">技能</span></button>
+        <button class="nav-item" data-view="channels"><span class="nav-ico" data-icon="bell"></span><span data-i18n="nav.channels">通知通道</span></button>
+        <button class="nav-item" data-view="settings"><span class="nav-ico" data-icon="gear"></span><span data-i18n="nav.settings">设置</span></button>
+        <div id="task-panel" class="task-panel scroll"></div>
+        <div class="rail-foot">
+          <div class="rail-stat"><span class="prov-dot"></span><span class="lbl" data-i18n="foot.modelLabel">当前模型</span><strong id="foot-model" class="mono">—</strong></div>
+          <div class="rail-stat"><span class="lbl" data-i18n="foot.costLabel">今日成本</span><strong id="foot-cost" class="mono">¥0.00</strong></div>
+          <div class="rail-stat"><span id="foot-access" class="badge" data-i18n="foot.access.public">公开</span><span class="spacer" style="flex:1"></span><span id="foot-version" class="mono t3" data-i18n-attr-title="foot.versionTitle" title="服务端版本"></span></div>
+        </div>
+      </aside>
+
+      <div class="main">
+        <header class="topbar">
+          <h1 id="page-title" data-i18n="nav.chat">对话</h1>
+          <span class="spacer"></span>
+          <button id="theme-toggle" class="theme-toggle" data-i18n-attr-title="theme.toggle" title="切换主题"><span data-icon="moon"></span></button>
+        </header>
+
+        <div class="view" id="view">
+          <section id="chat-view">
+            <div id="messages"></div>
+            <div id="attach-preview" style="display: none"></div>
+            <footer id="composer">
+              <div class="composer-inner">
+                <textarea id="user-input" rows="1" data-i18n-attr-placeholder="composer.placeholder" placeholder="给 WiseCortex 指派任务…（Enter 发送，Shift+Enter 换行）"></textarea>
+                <div class="composer-bar">
+                  <button id="cb-more" class="cb-icon" data-i18n-attr-title="composer.more" title="展开操作" hidden><span data-icon="chevR"></span></button>
+                  <div id="cb-tools" class="cb-tools">
+                    <button id="cwd-pill" class="cb-pill" data-i18n-attr-title="composer.cwd.label" title="工作目录"><span data-icon="folder"></span><span class="cwd-label" data-i18n="composer.cwd.defaultDir">默认目录</span></button>
+                    <button id="kb-pill" class="cb-pill icon-only" data-i18n-attr-title="composer.kb.empty" title="知识库（本任务）"><span data-icon="book"></span></button>
+                    <button id="mem-pill" class="cb-pill icon-only" data-i18n-attr-title="composer.mem.title" title="记忆（可查看/编辑）"><span data-icon="brain"></span></button>
+                    <select id="llm-switch" class="cb-select" data-i18n-attr-title="composer.model.title" title="本任务模型（默认跟随全局）"></select>
+                    <select id="effort-select" class="cb-select" data-i18n-attr-title="composer.effort.title" title="本会话思考强度（模型不支持则忽略）">
+                      <option value="__default__" data-i18n="composer.effort.opt.default">思考：默认</option>
+                      <option value="" data-i18n="composer.effort.opt.off">思考：关闭</option>
+                      <option value="low" data-i18n="composer.effort.opt.low">思考：low</option>
+                      <option value="medium" data-i18n="composer.effort.opt.medium">思考：medium</option>
+                      <option value="high" data-i18n="composer.effort.opt.high">思考：high</option>
+                      <option value="xhigh" data-i18n="composer.effort.opt.xhigh">思考：xhigh</option>
+                      <option value="max" data-i18n="composer.effort.opt.max">思考：max</option>
+                    </select>
+                    <button id="skills-pill" class="cb-pill icon-only" data-i18n-attr-title="composer.skills.empty" title="本任务技能（默认自动选择）"><span data-icon="skill"></span></button>
+                    <select id="perm-select" class="cb-select" data-i18n-attr-title="composer.perm.title" title="工具操作权限">
+                      <option value="default" data-i18n="composer.perm.default">默认权限</option>
+                      <option value="solo" data-i18n="composer.perm.solo">solo（自动批准）</option>
+                      <option value="strict" data-i18n="composer.perm.strict">严格（每步确认）</option>
+                    </select>
+                    <button id="plan-pill" class="cb-pill icon-only" data-i18n-attr-title="composer.plan.off" title="计划模式：只读探索+出计划，禁止改动"><span data-icon="clipboard"></span></button>
+                  </div>
+                  <span class="spacer"></span>
+                  <div class="cb-actions">
+                    <button id="btn-attach" class="cb-icon" data-i18n-attr-title="composer.attach.title" title="添加文件（图片 / PDF / 文档）" data-icon="plus"></button>
+                    <input id="img-input" type="file" accept="image/*,.pdf,.txt,.md,.csv,.json,.doc,.docx,.xls,.xlsx,.ppt,.pptx" multiple style="display: none" />
+                    <button id="btn-stop" class="btn btn-sm" style="display: none"><span data-icon="stop"></span><span data-i18n="composer.stop">停止</span></button>
+                    <button id="btn-send" class="btn btn-primary btn-sm btn-icon" disabled><span data-icon="send"></span></button>
+                  </div>
+                </div>
+              </div>
+            </footer>
+          </section>
+
+          <section id="tasks-view" class="scroll-view" hidden></section>
+          <section id="jobs-view" class="scroll-view" hidden></section>
+          <section id="skills-view" class="scroll-view" hidden></section>
+          <section id="channels-view" class="scroll-view" hidden></section>
+          <section id="settings-view" class="scroll-view" hidden></section>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/app.ts"></script>
+  </body>
+</html>

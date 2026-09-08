@@ -1,0 +1,22 @@
+[package]
+name = "wisecortex-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+wisecortex-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+axum = { version = "0.8", features = ["ws"] }
+tower-http = { version = "0.6", features = ["cors"] }
+futures-util.workspace = true
+tokio-tungstenite.workspace = true
+tracing = "0.1"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+# test-util：给「按 5 秒一拍复查开关」这类等待逻辑提供可快进的虚拟时钟
+# （#[tokio::test(start_paused = true)]），免得测试真去睡几分钟。仅测试用。
+tokio = { workspace = true, features = ["test-util"] }

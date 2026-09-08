@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS 专用的 Info.plist 补充项。Tauri 会自动把同目录（tauri.conf.json 旁边）的
+  Info.plist 合并进生成的那份，无需在配置里显式指定路径。
+
+  这里只放「必须由 plist 声明」的东西：
+    - NSAppleEventsUsageDescription：GUI 工具的窗口置前走 osascript → System Events，
+      属于「自动化」权限。缺这个键 macOS 直接拒绝，部分版本还会以 TCC violation 杀进程。
+
+  以下权限**没有**对应的 plist 键，纯由系统 TCC 管，别白费劲加：
+    - 屏幕录制（截图 / 窗口标题）—— 首次调用时由系统弹窗，或到系统设置里开。
+    - 辅助功能（合成点击 / 按键）—— 同上。
+-->
+<plist version="1.0">
+  <dict>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>WiseClaw 需要通过「系统事件」把目标窗口切到前台，否则合成的点击和按键会送错窗口。</string>
+  </dict>
+</plist>

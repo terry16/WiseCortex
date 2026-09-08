@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # ⚠️ 这里的 @stable 不决定编译用哪个版本——版本锁在仓库根的 rust-toolchain.toml，
+      # rustup 见到它会自动下载并覆盖默认工具链。要升级改那个文件，改这里没用。
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      # 不含 desktop（Tauri 需 webkit 系统依赖，仅 mac/win 构建）。
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+
+  # macOS：GUI 控制是平台专属代码，ubuntu 那个 job 根本编译不到 mac_gui
+  # （#[cfg(target_os = "macos")] 整个模块被跳过）。没有这个 job，AX/CGEvent 的
+  # 编译错误在真机跑之前不会有任何人发现——开发机是 Windows，也交叉编译不了。
+  # 注意：这里只保证「编译得过」。运行时验不了：CI 授不了 Accessibility/录屏权限，
+  # 也没有登录态 GUI 会话，相关 smoke 测试会自跳过。真机验证仍不可替代。
+  rust-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      # 同上：实际版本由 rust-toolchain.toml 决定。
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      # 同样走 default-members（不含 desktop/Tauri）。
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npx biome check .
+      - run: npx tsc --noEmit
+      - run: npx vitest run

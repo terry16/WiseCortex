@@ -1,0 +1,57 @@
+[workspace]
+resolver = "2"
+members = ["crates/core", "crates/server", "crates/cli", "desktop/src-tauri"]
+# 默认构建/测试不含 desktop（Tauri 仅 mac/win；Linux/CI 用 WebUI，避免缺 webkit 依赖报错）。
+# 桌面端用 `cargo build -p wisecortex-desktop` 显式构建。
+default-members = ["crates/core", "crates/server", "crates/cli"]
+
+[workspace.package]
+version = "0.9.19"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/terry16/WiseCortex"
+
+[workspace.dependencies]
+wisecortex-core = { path = "crates/core" }
+wisecortex-server = { path = "crates/server" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "net", "time", "process", "io-util"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "blocking", "rustls-tls", "socks"] }
+futures-util = "0.3"
+thiserror = "2"
+dirs = "5"
+clap = { version = "4", features = ["derive"] }
+glob = "0.3"
+regex = "1"
+walkdir = "2"
+wait-timeout = "0.2"
+# 企业微信回调加解密（只用解密方向 + sha1 验签）
+aes = "0.8"
+cbc = "0.1"
+sha1 = "0.10"
+# QQ 扫码绑定：解密 bot_encrypt_secret（AES-256-GCM）。
+aes-gcm = "0.10"
+base64 = "0.22"
+cron = "0.12"
+chrono = "0.4"
+# ClawHub 技能包是 ZIP；只需 deflate，关掉重型可选特性（bzip2/zstd/aes）。
+zip = { version = "2", default-features = false, features = ["deflate"] }
+# 飞书扫码二维码：用 core 矩阵自渲染 SVG，关掉 image 依赖。
+qrcode = { version = "0.14", default-features = false }
+# 飞书长连接：wss + gzip 解压（payload_encoding=gzip 时）。
+tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
+# 终端 TUI（wisecortex tui）：原始模式读键 + ANSI；event-stream 用于在 tokio::select! 里异步读键。
+crossterm = { version = "0.28", features = ["event-stream"] }
+flate2 = "1"
+# 把内置设计技能目录嵌入二进制（启动播种到数据目录）。
+include_dir = "0.7"
+# 邮件通知（SMTP）：用 rustls，与项目 TLS 栈一致，避免 openssl 依赖。
+lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "rustls-tls"] }
+
+# 开发迭代提速：release 默认关增量编译，改一行就要全量重编本 crate（实测 30s+）。
+# 打开增量 + 提高 codegen 并行度，代价是生成的代码略慢一点、target/ 变大。
+# 对自托管工具这笔买卖划算：编译等待是每天几十次，运行时那点差距感知不到。
+[profile.release]
+incremental = true
+codegen-units = 256

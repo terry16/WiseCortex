@@ -1,0 +1,64 @@
+[package]
+name = "wisecortex-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+reqwest.workspace = true
+futures-util.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+dirs.workspace = true
+glob.workspace = true
+regex.workspace = true
+walkdir.workspace = true
+wait-timeout.workspace = true
+aes.workspace = true
+aes-gcm.workspace = true
+cbc.workspace = true
+sha1.workspace = true
+base64.workspace = true
+cron.workspace = true
+chrono.workspace = true
+zip.workspace = true
+qrcode.workspace = true
+flate2.workspace = true
+include_dir.workspace = true
+lettre.workspace = true
+# Claude 订阅 OAuth（PKCE）：SHA-256 challenge + 随机 verifier/state。
+sha2 = "0.10"
+rand = "0.8"
+
+# Windows 本地 GUI 控制（截图/枚举/输入）。仅在 Windows 编译，Linux 服务器构建不受影响。
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_Storage_Xps",
+] }
+
+# PNG 编码 + 缩放：Windows 与 macOS 的窗口截图都要它。
+# 仍按平台挂，Linux 服务器（无 GUI 控制）不白拖这份依赖；default-features=false 只取 png。
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+# macOS 本地 GUI 控制。仅在 macOS 编译，Windows/Linux 不受影响。
+[target.'cfg(target_os = "macos")'.dependencies]
+# 窗口枚举（CGWindowListCopyWindowInfo）+ 窗口截图（CGDisplay::screenshot）+ 录屏权限预检。
+# 注意：kCGWindow* 常量在 `window` 模块里，不在 `display`（网上老教程多写错，0.25 已不解析）。
+core-graphics = "0.25"
+core-foundation = "0.10" # 必须与 core-graphics 同为 0.10.x：混入 0.9 会让 CFString 变成两个不同类型
+# 输入合成。不手写 CGEvent 的理由：enigo 已替我们处理 CGEventSource 的 clone 纪律、
+# 事件间隔（缺了事件会被丢弃）、Unicode 分块、键码映射——这些坑单靠读文档很难写对。
+enigo = "0.6"
+
+[dev-dependencies]
+axum = { version = "0.8" }
+# test-util：给限流倒计时等涉及 sleep 的测试提供可快进的暂停时钟（#[tokio::test(start_paused)]），
+# 免得真等 10 分钟。仅测试用，不进生产依赖。
+tokio = { workspace = true, features = ["test-util"] }

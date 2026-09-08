@@ -1,0 +1,117 @@
+name: Release
+
+# 打 tag 触发（如 v0.9.19），产出三平台安装包并挂到 GitHub Release。
+# 手动触发（workflow_dispatch）用于补发或试跑。
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (e.g. v0.9.19)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            label: windows-x64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            label: macos-arm64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            label: macos-x64
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # 前端先构建：Tauri 打包时直接吃 web/dist。
+      - name: Build web
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      # CLI + server 独立二进制（不带 GUI，服务器/终端用户装这个）。
+      - name: Build binaries
+        run: cargo build --release --target ${{ matrix.target }} -p wisecortex-cli -p wisecortex-server
+
+      - name: Install Tauri CLI
+        run: npm install -g @tauri-apps/cli@^2
+
+      # 桌面安装包：Windows 出 .msi/.exe，macOS 出 .dmg/.app。
+      - name: Build desktop bundle
+        working-directory: desktop
+        run: npx tauri build --target ${{ matrix.target }}
+
+      # 打包裸二进制，方便不想装 GUI 的用户直接取用。
+      - name: Package binaries (unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p dist
+          cd target/${{ matrix.target }}/release
+          tar czf "$GITHUB_WORKSPACE/dist/wisecortex-${{ matrix.label }}.tar.gz" wisecortex wisecortex-server
+      - name: Package binaries (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path target/${{ matrix.target }}/release/wisecortex.exe,
+                                 target/${{ matrix.target }}/release/wisecortex-server.exe `
+                           -DestinationPath dist/wisecortex-${{ matrix.label }}.zip
+
+      - name: Collect installers
+        shell: bash
+        run: |
+          mkdir -p dist
+          # Tauri 产物路径随平台不同，统一捞一遍。
+          find target/${{ matrix.target }}/release/bundle -type f \
+            \( -name "*.msi" -o -name "*.exe" -o -name "*.dmg" \) \
+            -exec cp {} dist/ \; 2>/dev/null || true
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.label }}
+          path: dist/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Flatten
+        run: |
+          mkdir -p dist
+          find artifacts -type f -exec cp {} dist/ \;
+          ls -la dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          draft: true
+          generate_release_notes: true
+          files: dist/*

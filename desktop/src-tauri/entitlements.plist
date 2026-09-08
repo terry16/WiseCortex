@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS 代码签名 entitlements。由 tauri.conf.json 的 bundle.macOS.entitlements 指向。
+
+  为什么需要：Tauri 的 hardenedRuntime 默认为 true，而**加固运行时下的进程发送
+  AppleEvents 必须持有 com.apple.security.automation.apple-events**，否则窗口置前
+  （osascript → System Events）会被系统拒掉——这与 Info.plist 里的
+  NSAppleEventsUsageDescription 是两件事，两个都得有：plist 提供给用户看的理由，
+  entitlement 提供给内核的许可。
+
+  刻意**不加** com.apple.security.app-sandbox：
+  开启 App Sandbox 后辅助功能(AX) API 会全部失效——AXIsProcessTrusted() 照样返回
+  true，但每个 AX 调用都返回 kAXErrorCannotComplete（Apple DTS 明确表示不支持）。
+  当前阶段（眼睛+手）没用 AX 所以不受影响，但 Phase 2 的 ui_tree / find_element
+  会直接废掉。将来若要上 App Store，得先解决这个矛盾，不能顺手把沙箱打开。
+-->
+<plist version="1.0">
+  <dict>
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+  </dict>
+</plist>

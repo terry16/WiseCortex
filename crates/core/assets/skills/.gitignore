@@ -1,0 +1,9 @@
+# 防止运行/构建产物混入被嵌入二进制的技能资源目录
+__pycache__/
+*.pyc
+target/
+design-system/
+.DS_Store
+
+# 这些是被嵌入二进制的技能资源，必须入库——抵消仓库根 .gitignore 的全局 `reference/` 规则
+!reference/

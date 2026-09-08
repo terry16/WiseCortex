@@ -1,0 +1,43 @@
+# --- Upstream reference (not part of our codebase) ---
+openclacky-main/
+reference/
+
+# --- Rust ---
+/target/
+**/target/
+Cargo.lock.bak
+*.pdb
+*.exe
+
+# --- Node / Vite (web frontend) ---
+node_modules/
+dist/
+.vite/
+*.local
+
+# --- Tauri ---
+/desktop/src-tauri/target/
+/desktop/dist/
+
+# --- Editor / OS ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log
+
+# 第三方参考源（仅本地阅读，不入库）
+claude-code-main/
+cline-ref/
+openclaw-ref/
+opencode-ref/
+
+# --- 本地私有技能：绝不入库 ---
+# skills/ 本身是跟踪的（内置技能在库里），所以这几个必须逐个排除——
+# 光靠「没 git add 过」不算防护，一次 `git add -A` 就全进去了，
+# 而 deploy-mud-changes/config.json 里是真实凭据，仓库又是公开的。
+/skills/create-kungfu-skill/
+/skills/create-maze-fb/
+/skills/create-quest/
+/skills/deploy-mud-changes/

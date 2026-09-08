@@ -1,0 +1,22 @@
+[package]
+name = "wisecortex-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+# 在系统浏览器打开外部 URL（Claude 订阅 OAuth 授权页等）；Tauri 里 window.open 不调起浏览器。
+tauri-plugin-opener = "2"
+# 取操作系统语言（locale），用于桌面端按系统语言自动设默认界面语言；
+# 前端经 window.__TAURI__.os.locale() 调用（navigator.language 在 webview 里未必准）。
+tauri-plugin-os = "2"
+# 单实例：Windows 桌面壳只允许一个实例（内嵌后端只起一份，避免多窗口共用首个实例后端、
+# 关掉宿主窗口导致其余窗口 WS 全断）。
+tauri-plugin-single-instance = "2"
+wisecortex-server.workspace = true
+tokio.workspace = true

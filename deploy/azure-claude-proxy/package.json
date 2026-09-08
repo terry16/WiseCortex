@@ -1,0 +1,16 @@
+{
+  "name": "wisecortex-azure-claude-proxy",
+  "version": "1.0.0",
+  "description": "Azure Functions reverse proxy for WiseCortex Claude (claude.ai subscription) endpoints.",
+  "private": true,
+  "main": "src/functions/*.js",
+  "scripts": {
+    "start": "func start"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.5.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
