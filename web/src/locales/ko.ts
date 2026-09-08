@@ -424,10 +424,12 @@ export const ko = {
   "settings.modal.effortHint":
     "이 모델에만 적용되어 전역을 재정의합니다. 제공자별 자동 변환(Anthropic→thinking, OpenAI/Gemini→reasoning_effort, Qwen/Hunyuan→enable_thinking; DeepSeek 등 사고 내장 모델은 매개변수를 보내지 않아 무효). “끔” = 이 모델은 사고하지 않음; “전역 기본값 따름” = 위의 전역 추론 강도 사용.",
   "settings.modal.test": "연결 테스트",
-  "settings.modal.baseHintPreset": "프리셋 엔드포인트(자동 입력)",
+  "settings.modal.baseHintPreset":
+    "프리셋 엔드포인트가 입력됨 — 프록시나 자체 게이트웨이 주소로 바꿀 수 있습니다",
   "settings.modal.baseHintCompat":
     "OpenAI 호환 엔드포인트 — 직접 입력하세요, 예: http://localhost:8000/v1",
-  "settings.modal.modelHintPreset": "제공자 프리셋 — 사용할 모델 ID를 선택하세요.",
+  "settings.modal.modelHintPreset":
+    "원하는 모델 ID를 직접 입력할 수 있습니다. 목록은 이 제공자의 주요 모델 참고용입니다.",
   "settings.modal.modelHintCompat": "OpenAI 호환 API — 모델 ID를 수동으로 입력하세요.",
   "settings.modal.needEndpoint": "Endpoint를 입력하세요",
   "settings.modal.needModel": "Model ID를 선택 / 입력하세요",

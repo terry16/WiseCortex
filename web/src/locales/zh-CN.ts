@@ -407,9 +407,9 @@ export const zhCN = {
   "settings.modal.effortHint":
     "仅对该模型生效，覆盖全局。按提供商自动翻译（Anthropic→thinking，OpenAI/Gemini→reasoning_effort，千问/混元→enable_thinking；DeepSeek 等内置思考的模型不发参数，此项无效）。「关闭」=该模型不思考；「跟随全局默认」=用上方全局推理强度。",
   "settings.modal.test": "测试连接",
-  "settings.modal.baseHintPreset": "预设端点（自动填充）",
+  "settings.modal.baseHintPreset": "已填入预设端点，可改成反代或自建网关地址",
   "settings.modal.baseHintCompat": "OpenAI 兼容端点，请自填，如 http://localhost:8000/v1",
-  "settings.modal.modelHintPreset": "由提供商预设，选择要使用的模型 ID。",
+  "settings.modal.modelHintPreset": "可直接输入任意模型 ID；下拉里是该提供商的常见机型，仅作参考。",
   "settings.modal.modelHintCompat": "OpenAI 兼容接口，请手动填写模型 ID。",
   "settings.modal.needEndpoint": "请填写 Endpoint",
   "settings.modal.needModel": "请选择 / 填写 Model ID",

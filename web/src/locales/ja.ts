@@ -429,11 +429,12 @@ export const ja = {
   "settings.modal.effortHint":
     "このモデルのみに適用され、グローバルを上書きします。プロバイダーごとに自動変換（Anthropic→thinking、OpenAI/Gemini→reasoning_effort、Qwen/Hunyuan→enable_thinking。DeepSeek など思考が組み込まれたモデルはパラメータを送らないため無効）。「オフ」=このモデルは思考しない。「グローバル既定に従う」=上のグローバル推論強度を使用。",
   "settings.modal.test": "接続テスト",
-  "settings.modal.baseHintPreset": "プリセットエンドポイント（自動入力）",
+  "settings.modal.baseHintPreset":
+    "プリセットのエンドポイントを入力済み。プロキシや自建ゲートウェイに変更できます",
   "settings.modal.baseHintCompat":
     "OpenAI 互換エンドポイント。自分で入力してください。例：http://localhost:8000/v1",
   "settings.modal.modelHintPreset":
-    "プロバイダーのプリセット。使用するモデル ID を選択してください。",
+    "任意のモデル ID を直接入力できます。リストはこのプロバイダーの主なモデルの参考表示です。",
   "settings.modal.modelHintCompat": "OpenAI 互換 API。モデル ID を手動で入力してください。",
   "settings.modal.needEndpoint": "Endpoint を入力してください",
   "settings.modal.needModel": "Model ID を選択 / 入力してください",

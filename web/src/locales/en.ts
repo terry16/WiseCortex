@@ -429,10 +429,12 @@ export const en = {
   "settings.modal.effortHint":
     "Applies to this model only, overriding global. Auto-translated per provider (Anthropic→thinking, OpenAI/Gemini→reasoning_effort, Qwen/Hunyuan→enable_thinking; models with built-in thinking like DeepSeek send no parameter, so this has no effect). “Off” = this model doesn't think; “follow global default” = use the global reasoning effort above.",
   "settings.modal.test": "Test connection",
-  "settings.modal.baseHintPreset": "Preset endpoint (auto-filled)",
+  "settings.modal.baseHintPreset":
+    "Preset endpoint filled in — edit it to point at a proxy or self-hosted gateway",
   "settings.modal.baseHintCompat":
     "OpenAI-compatible endpoint — enter it yourself, e.g. http://localhost:8000/v1",
-  "settings.modal.modelHintPreset": "Preset by the provider — pick the model ID to use.",
+  "settings.modal.modelHintPreset":
+    "Type any model ID — the dropdown lists this provider's common models for reference only.",
   "settings.modal.modelHintCompat": "OpenAI-compatible API — enter the model ID manually.",
   "settings.modal.needEndpoint": "Please enter the Endpoint",
   "settings.modal.needModel": "Please select / enter the Model ID",

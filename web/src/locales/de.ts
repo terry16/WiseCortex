@@ -442,11 +442,12 @@ export const de = {
   "settings.modal.effortHint":
     "Gilt nur für dieses Modell und überschreibt global. Automatisch je Anbieter übersetzt (Anthropic→thinking, OpenAI/Gemini→reasoning_effort, Qwen/Hunyuan→enable_thinking; Modelle mit eingebautem Denken wie DeepSeek senden keinen Parameter, daher ohne Wirkung). „Aus“ = dieses Modell denkt nicht; „globalem Standard folgen“ = den globalen Denkaufwand oben verwenden.",
   "settings.modal.test": "Verbindung testen",
-  "settings.modal.baseHintPreset": "Voreingestellter Endpunkt (automatisch ausgefüllt)",
+  "settings.modal.baseHintPreset":
+    "Voreingestellter Endpunkt eingetragen — auf Proxy oder eigenes Gateway änderbar",
   "settings.modal.baseHintCompat":
     "OpenAI-kompatibler Endpunkt — selbst eingeben, z. B. http://localhost:8000/v1",
   "settings.modal.modelHintPreset":
-    "Vom Anbieter voreingestellt — wähle die zu verwendende Modell-ID.",
+    "Beliebige Modell-ID direkt eingeben — die Liste zeigt nur gängige Modelle dieses Anbieters.",
   "settings.modal.modelHintCompat": "OpenAI-kompatible API — Modell-ID manuell eingeben.",
   "settings.modal.needEndpoint": "Bitte den Endpoint eingeben",
   "settings.modal.needModel": "Bitte die Model ID wählen / eingeben",

@@ -18,6 +18,32 @@ interface Provider {
   base_url: string;
   vision_models?: string[];
 }
+
+/// 模型弹窗里「端点 / 模型 ID」两栏该呈现什么。
+///
+/// 抽成纯函数是为了能直接测：这块的规则踩过坑——早期预设 provider 会把端点设成
+/// readOnly、模型做成 select，结果模型一更新就得改代码发版，反代用户也没法改端点。
+/// 现在两栏都可编辑，预设值只作为初值和 datalist 建议。
+export function modelFieldState(
+  p: Provider | undefined,
+  opts: { initial?: boolean; savedModel?: string | null; savedBaseUrl?: string | null } = {},
+): { baseUrl: string; model: string; suggestions: string[] } {
+  const { initial, savedModel, savedBaseUrl } = opts;
+  // 编辑已有档：一律以存下来的值为准（用户可能填过自定义反代/自定义模型）。
+  if (initial) {
+    return {
+      baseUrl: savedBaseUrl?.trim() || p?.base_url || "",
+      model: savedModel?.trim() || p?.default_model || "",
+      suggestions: p?.models ?? [],
+    };
+  }
+  // 新建或切换 provider：用该 provider 的预设做初值。
+  return {
+    baseUrl: p?.base_url ?? "",
+    model: p?.default_model ?? "",
+    suggestions: p?.models ?? [],
+  };
+}
 export interface LlmRow {
   id: string;
   name: string;
@@ -1247,8 +1273,8 @@ export function mountSettingsView(container: HTMLElement): { refresh: () => void
           </div>
           <div class="field">
             <label>Model ID</label>
-            <select id="m-model-sel" class="select"></select>
-            <input id="m-model-txt" class="input mono" placeholder="your-model-name" hidden />
+            <input id="m-model-txt" class="input mono" list="m-model-list" placeholder="your-model-name" autocomplete="off" />
+            <datalist id="m-model-list"></datalist>
             <div class="hint" id="m-model-hint"></div>
           </div>
           <div class="field">
@@ -1315,8 +1341,8 @@ export function mountSettingsView(container: HTMLElement): { refresh: () => void
     const q = <T extends HTMLElement>(s: string) => overlay.querySelector(s) as T;
     const prov = q<HTMLSelectElement>("#m-prov");
     const base = q<HTMLInputElement>("#m-base");
-    const modelSel = q<HTMLSelectElement>("#m-model-sel");
     const modelTxt = q<HTMLInputElement>("#m-model-txt");
+    const modelList = q<HTMLDataListElement>("#m-model-list");
     const baseHint = q("#m-base-hint");
     const modelHint = q("#m-model-hint");
     prov.innerHTML = providers
@@ -1324,43 +1350,33 @@ export function mountSettingsView(container: HTMLElement): { refresh: () => void
       .join("");
 
     const isCompatNow = (): boolean => prov.value === "openai-compatible";
-    const currentModel = (): string =>
-      isCompatNow() ? modelTxt.value.trim() : modelSel.value.trim();
+    const currentModel = (): string => modelTxt.value.trim();
 
     function applyProvider(initial?: boolean): void {
       const p = providers.find((x) => x.id === prov.value);
       const isCompat = isCompatNow();
-      // 端点：预设只读自动填；openai 兼容可编辑。
-      if (p && !isCompat) {
-        base.value = p.base_url;
-        base.classList.add("locked");
-        base.readOnly = true;
-        baseHint.textContent = t("settings.modal.baseHintPreset");
-      } else {
-        base.readOnly = false;
-        base.classList.remove("locked");
-        baseHint.textContent = t("settings.modal.baseHintCompat");
-        if (!initial) base.value = "";
-      }
-      // Model ID：预设用下拉（取 models 表）；兼容端点手填。
-      if (p && !isCompat && p.models.length > 0) {
-        modelSel.hidden = false;
-        modelTxt.hidden = true;
-        const want = initial && row?.model ? row.model : p.default_model;
-        const opts = [...p.models];
-        if (want && !opts.includes(want)) opts.unshift(want);
-        modelSel.innerHTML = opts
-          .map((m) => `<option value="${esc(m)}">${esc(m)}</option>`)
-          .join("");
-        modelSel.value = want || p.models[0];
-        modelHint.textContent = t("settings.modal.modelHintPreset");
-      } else {
-        modelSel.hidden = true;
-        modelTxt.hidden = false;
-        if (initial && row?.model) modelTxt.value = row.model;
-        else if (!initial) modelTxt.value = "";
-        modelHint.textContent = t("settings.modal.modelHintCompat");
-      }
+      // openai-compatible 没有预设端点/模型，一切靠手填。
+      const st = modelFieldState(isCompat ? undefined : p, {
+        initial,
+        savedModel: row?.model,
+        savedBaseUrl: row?.base_url,
+      });
+      // 端点与模型 ID **始终可编辑**：模型迭代太快，写死清单就得跟着发版；
+      // 反代 / 自建网关 / 区域端点也都要能改。预设值只作初值与 datalist 建议。
+      base.value = st.baseUrl;
+      base.readOnly = false;
+      base.classList.remove("locked");
+      baseHint.textContent = isCompat
+        ? t("settings.modal.baseHintCompat")
+        : t("settings.modal.baseHintPreset");
+      modelTxt.value = st.model;
+      modelList.innerHTML = st.suggestions
+        .map((m) => `<option value="${esc(m)}"></option>`)
+        .join("");
+      modelHint.textContent =
+        st.suggestions.length > 0
+          ? t("settings.modal.modelHintPreset")
+          : t("settings.modal.modelHintCompat");
       // vision 复选框：编辑时用已存值；否则按所选模型是否在该 provider 的视觉清单里自动勾选。
       const visionBox = q<HTMLInputElement>("#m-vision");
       if (initial && row?.vision !== undefined) {
@@ -1387,7 +1403,6 @@ export function mountSettingsView(container: HTMLElement): { refresh: () => void
     const keyInput = q<HTMLInputElement>("#m-key");
     keyInput.placeholder = row?.api_key_set ? t("settings.keySetPlaceholder") : "sk-…";
     applyProvider(true);
-    if (row?.base_url && isCompatNow()) base.value = row.base_url;
 
     prov.addEventListener("change", () => applyProvider());
     // 切换模型时按视觉清单重置 vision 默认（用户随后仍可手动改）。
@@ -1395,8 +1410,8 @@ export function mountSettingsView(container: HTMLElement): { refresh: () => void
       const p = providers.find((x) => x.id === prov.value);
       q<HTMLInputElement>("#m-vision").checked = !!p?.vision_models?.includes(currentModel());
     };
-    modelSel.addEventListener("change", syncVisionDefault);
     modelTxt.addEventListener("input", syncVisionDefault);
+    modelTxt.addEventListener("change", syncVisionDefault);
 
     // 测试连接：用当前表单值发一条极小请求，验证模型可用（不保存）。
     q<HTMLButtonElement>("#m-test").addEventListener("click", async () => {
