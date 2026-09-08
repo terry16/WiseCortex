@@ -26,7 +26,9 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
             label: macos-arm64
-          - os: macos-13
+          # Intel 版：macos-13 已进入退役流程（排队几乎不再被调度），
+          # 官方替代标签是 macos-15-intel，供应到 2027-08，之后 Actions 不再提供 x86_64。
+          - os: macos-15-intel
             target: x86_64-apple-darwin
             label: macos-x64
 
