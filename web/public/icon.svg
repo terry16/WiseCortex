@@ -33,24 +33,22 @@
   <rect x="0.47" y="0.47" width="23.06" height="23.06" rx="5.73" fill="none"
         stroke="url(#rim)" stroke-width="0.12"/>
 
-  <!-- 方案B：神经节点星丛——中心枢纽 + 六向连接，正面表达“智能体网络” -->
-  <g stroke="url(#ink)" stroke-width="1.05" stroke-linecap="round" opacity="0.9">
-    <line x1="12" y1="12" x2="12" y2="6.6"/>
-    <line x1="12" y1="12" x2="16.7" y2="9.3"/>
-    <line x1="12" y1="12" x2="16.7" y2="14.7"/>
-    <line x1="12" y1="12" x2="12" y2="17.4"/>
-    <line x1="12" y1="12" x2="7.3" y2="14.7"/>
-    <line x1="12" y1="12" x2="7.3" y2="9.3"/>
+  <!-- v5：保留 6 向但卫星贴近边缘、笔画极粗，墨色占比最大 -->
+  <g stroke="url(#ink)" stroke-width="2.1" stroke-linecap="round" opacity="0.96">
+    <line x1="12" y1="12" x2="12" y2="4.4"/>
+    <line x1="12" y1="12" x2="18.58" y2="8.2"/>
+    <line x1="12" y1="12" x2="18.58" y2="15.8"/>
+    <line x1="12" y1="12" x2="12" y2="19.6"/>
+    <line x1="12" y1="12" x2="5.42" y2="15.8"/>
+    <line x1="12" y1="12" x2="5.42" y2="8.2"/>
   </g>
   <g fill="url(#ink)">
-    <!-- 中心枢纽 -->
-    <circle cx="12" cy="12" r="2.5"/>
-    <!-- 六个卫星节点，大小交替产生节奏 -->
-    <circle cx="12" cy="6.2" r="1.5"/>
-    <circle cx="17.0" cy="9.1" r="1.15"/>
-    <circle cx="17.0" cy="14.9" r="1.5"/>
-    <circle cx="12" cy="17.8" r="1.15"/>
-    <circle cx="7.0" cy="14.9" r="1.5"/>
-    <circle cx="7.0" cy="9.1" r="1.15"/>
+    <circle cx="12" cy="12" r="3.9"/>
+    <circle cx="12" cy="4.4" r="2.3"/>
+    <circle cx="18.58" cy="8.2" r="2.3"/>
+    <circle cx="18.58" cy="15.8" r="2.3"/>
+    <circle cx="12" cy="19.6" r="2.3"/>
+    <circle cx="5.42" cy="15.8" r="2.3"/>
+    <circle cx="5.42" cy="8.2" r="2.3"/>
   </g>
 </svg>
