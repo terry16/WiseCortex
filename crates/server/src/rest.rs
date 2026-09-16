@@ -1610,6 +1610,10 @@ async fn get_config() -> Json<Value> {
         "auto_memory": c.auto_memory.unwrap_or(false),
         // 自动优化上下文（图片只发一次）。未配置=开启。
         "auto_trim_context": c.auto_trim_context_effective(),
+        // 自动压缩上下文。未配置=开启；关闭后到达阈值只询问。
+        "auto_compact_context": c.auto_compact_context_effective(),
+        // 压缩触发阈值（token）。null=用默认 60000。
+        "compact_threshold_tokens": c.compact_threshold_tokens,
         // 推理强度 / extended thinking（""=关闭）。
         "reasoning_effort": c.reasoning_effort.clone().unwrap_or_default(),
         // 无人值守任务（定时/IM）回合上限（0/null=用默认 50；env WC_MAX_ITERATIONS 优先）。
@@ -1940,6 +1944,21 @@ async fn post_config(State(state): State<AppState>, Json(body): Json<Value>) -> 
     }
     if let Some(v) = body.get("auto_trim_context").and_then(Value::as_bool) {
         c.auto_trim_context = Some(v);
+    }
+    if let Some(v) = body.get("auto_compact_context").and_then(Value::as_bool) {
+        c.auto_compact_context = Some(v);
+    }
+    // compact_threshold_tokens：正整数即设置，0/空恢复默认（None）。
+    // 下限由 compact_threshold_tokens_effective() 兜底，这里不拦——否则用户填小值会被静默改写，
+    // 界面上还显示原值，反而更费解。
+    if let Some(v) = body.get("compact_threshold_tokens") {
+        let n = v
+            .as_u64()
+            .or_else(|| v.as_str().and_then(|s| s.trim().parse().ok()));
+        c.compact_threshold_tokens = match n {
+            Some(x) if x > 0 => Some(x as usize),
+            _ => None,
+        };
     }
     // reasoning_effort：显式传入才改；空串=关闭。
     if let Some(v) = body.get("reasoning_effort").and_then(Value::as_str) {

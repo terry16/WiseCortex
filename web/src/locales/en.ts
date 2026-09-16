@@ -320,6 +320,15 @@ export const en = {
     "Send each image once; later turns omit it, and compaction drops images too",
   "settings.access.autotrimHelp":
     "Images are the most expensive thing in a context — a single screenshot is easily a thousand tokens, and by default it is resent verbatim on every single turn. When on, an image is included only for the turn it was sent in; later turns replace it with a one-line placeholder, and history compaction drops images as well. For UI tweaks or test runs the image is useless once seen; turn this off when you need to compare the same image repeatedly.",
+  "settings.access.autocompact": "Auto-compact context",
+  "settings.access.autocompactSub":
+    "Summarise older turns once the context passes the threshold; off means you get asked instead",
+  "settings.access.autocompactHelp":
+    "Compacting replaces earlier turns with a summary. It saves tokens, but exact wording, figures and clause details are lost. For drafting documents, reviewing contracts or legal work, turn this off — you will then be asked once when the threshold is reached. Answer no and the full context is kept; you are only asked again after it grows by another threshold, not on every turn.",
+  "settings.access.compactThreshold": "Compaction threshold (tokens)",
+  "settings.access.compactThresholdPlaceholder": "Blank = default 60000",
+  "settings.access.compactThresholdHint":
+    "History above this estimate triggers compaction (or the prompt). Higher keeps more detail but sits closer to the model's context limit; minimum 25000.",
 
   // settings — MCP
   "settings.mcp.title": "MCP servers",
@@ -373,6 +382,10 @@ export const en = {
   "settings.status.automemOn": "Auto memory enabled (restart the server to apply)",
   "settings.status.autotrimOn": "Auto-trim context on (each image sent once)",
   "settings.status.autotrimOff": "Auto-trim context off (images resent every turn)",
+  "settings.status.autocompactOn": "Auto-compact context on",
+  "settings.status.autocompactOff": "Auto-compact context off (you will be asked at the threshold)",
+  "settings.status.compactThreshold": "Compaction threshold set to {v} tokens",
+  "settings.status.compactThresholdDefault": "Compaction threshold reset to default (60000)",
   "settings.status.automemOff": "Auto memory disabled (restart the server to apply)",
 
   // settings — model modal

@@ -111,6 +111,11 @@ struct Entry {
     knowledge: Vec<String>,
     /// 任务级配置（模型/技能/auto-approve/工作目录）；随会话持久化。
     config: TaskConfig,
+    /// 上次「是否压缩上下文」被拒绝时的历史 token 估算，用作下次询问的基准。
+    /// 关掉自动压缩后，到达阈值问一次；选「否」就以当时的体量为新起点，
+    /// 再增长一个阈值才会重问——否则此后每轮都会弹窗。
+    /// 纯运行时状态，不落盘（重启后重新探测即可）。
+    compact_declined_at: Option<usize>,
 }
 
 /// 落盘格式：session 元数据 + 历史 + 知识库绑定 + 任务配置。
@@ -233,6 +238,7 @@ impl SessionRegistry {
                         history: p.history,
                         knowledge: p.knowledge,
                         config: p.config,
+                        compact_declined_at: None,
                     },
                 );
             }
@@ -383,6 +389,7 @@ impl SessionRegistry {
                 history: Vec::new(),
                 knowledge: Vec::new(),
                 config: TaskConfig::default(),
+                compact_declined_at: None,
             }
         });
         // 注意：不在此处对空会话落盘——空会话不持久化，避免侧边栏堆积无内容的会话。
@@ -475,8 +482,29 @@ impl SessionRegistry {
     /// 用新的消息列表替换该 session 的对话历史（上下文压缩后调用）。
     pub fn replace_history(&self, id: &str, messages: Vec<ChatMessage>) {
         if let Some(entry) = self.inner.lock().unwrap().get_mut(id) {
+            // 历史被清空（/clear）时一并忘掉「压缩询问基准」，否则新对话会沿用旧基准，
+            // 迟迟不提示。压缩回写的历史永远非空（摘要+最近段），不会误触发。
+            if messages.is_empty() {
+                entry.compact_declined_at = None;
+            }
             entry.history = messages;
             self.persist_entry(entry);
+        }
+    }
+
+    /// 取「上次拒绝压缩时的历史体量」，None=从未拒绝过。
+    pub fn compact_declined_at(&self, id: &str) -> Option<usize> {
+        self.inner
+            .lock()
+            .unwrap()
+            .get(id)
+            .and_then(|e| e.compact_declined_at)
+    }
+
+    /// 记录/清除「上次拒绝压缩时的历史体量」。纯运行时状态，不落盘。
+    pub fn set_compact_declined_at(&self, id: &str, tokens: Option<usize>) {
+        if let Some(entry) = self.inner.lock().unwrap().get_mut(id) {
+            entry.compact_declined_at = tokens;
         }
     }
 
@@ -787,6 +815,26 @@ mod tests {
         assert_eq!(reg2.active_session(&origin).as_deref(), Some("web-42"));
         assert_eq!(reg2.listing(&origin), vec!["web-42".to_string()]);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 关掉自动压缩后选「否」，要记住当时的体量当基准；
+    /// 清空历史（/clear）则应一并忘掉，否则新对话会沿用旧基准迟迟不提示。
+    #[test]
+    fn compact_decline_baseline_is_remembered_and_cleared_with_history() {
+        let reg = SessionRegistry::new();
+        reg.ensure("s1");
+        assert_eq!(reg.compact_declined_at("s1"), None);
+
+        reg.set_compact_declined_at("s1", Some(72_000));
+        assert_eq!(reg.compact_declined_at("s1"), Some(72_000));
+
+        // 压缩后回写的历史非空，基准应原样保留（由调用方决定何时清）。
+        reg.replace_history("s1", vec![ChatMessage::user("hi")]);
+        assert_eq!(reg.compact_declined_at("s1"), Some(72_000));
+
+        // /clear 走的是 replace_history(空)，此时必须归零。
+        reg.replace_history("s1", Vec::new());
+        assert_eq!(reg.compact_declined_at("s1"), None);
     }
 
     #[test]

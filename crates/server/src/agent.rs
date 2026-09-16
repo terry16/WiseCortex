@@ -283,8 +283,6 @@ fn task_tool_def() -> ToolDef {
     }
 }
 
-/// 历史超过该 token 估算值时触发上下文压缩。
-const COMPRESSION_THRESHOLD_TOKENS: usize = 60_000;
 /// 压缩后保留的最近消息 token 预算（摘要 + 这段最近消息 = 新历史）。
 /// 取得比阈值小不少，使压缩后还有余量、下次需再积累约 (阈值-此值) token 才重触发，避免抖动。
 const KEEP_RECENT_TOKENS: usize = 20_000;
@@ -464,6 +462,11 @@ pub struct LlmAgent {
     auto_memory: bool,
     /// 自动优化上下文：图片只发一次（历史里的旧图不随后续每轮重发，压缩时一并丢弃）。
     auto_trim_context: bool,
+    /// 自动压缩上下文：关闭后到达阈值只询问一次，由用户决定压不压。
+    /// 摘要必然丢细节，写文书/审条款这类依赖原文措辞的活不能被静默压掉。
+    auto_compact_context: bool,
+    /// 触发压缩（或询问）的历史 token 阈值。
+    compact_threshold_tokens: usize,
     /// 全局默认推理强度 / extended thinking（low/medium/high/xhigh/max）；None=关闭。
     reasoning_effort: Option<String>,
     /// 默认（active）模型档内的推理强度档位（覆盖全局；None=该模型未单独设，用全局）。
@@ -626,6 +629,18 @@ impl Agent {
             .map(|v| matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"))
             .or(file.auto_trim_context)
             .unwrap_or(true);
+        // auto_compact_context：env WC_AUTO_COMPACT_CONTEXT > 配置文件 > 默认开启。
+        // 关掉后不再自动摘要，改为到达阈值时询问——文书/法律类工作丢不起细节。
+        let auto_compact_context = env("WC_AUTO_COMPACT_CONTEXT")
+            .map(|v| matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"))
+            .or(file.auto_compact_context)
+            .unwrap_or(true);
+        // 压缩阈值：env WC_COMPACT_THRESHOLD_TOKENS > 配置文件 > 默认 60000（下限见常量）。
+        let compact_threshold_tokens = env("WC_COMPACT_THRESHOLD_TOKENS")
+            .and_then(|v| v.trim().parse::<usize>().ok())
+            .or(file.compact_threshold_tokens)
+            .unwrap_or(wisecortex_core::config::COMPACT_THRESHOLD_TOKENS_DEFAULT)
+            .max(wisecortex_core::config::COMPACT_THRESHOLD_TOKENS_MIN);
         // 推理强度 / extended thinking：环境变量 WC_REASONING_EFFORT > 配置文件；空白视为关闭。
         let reasoning_effort = env("WC_REASONING_EFFORT")
             .or(file.reasoning_effort.clone())
@@ -742,6 +757,8 @@ impl Agent {
                     price,
                     auto_memory,
                     auto_trim_context,
+                    auto_compact_context,
+                    compact_threshold_tokens,
                     reasoning_effort,
                     default_reasoning_effort: active.reasoning_effort.clone(),
                     max_iterations,
@@ -2009,7 +2026,8 @@ impl LlmAgent {
     ) {
         // 先剥旧图：旧截图按兆级 base64 占请求体，摘要压缩管不住字节层面。
         compressor::prune_old_images(history, KEEP_RECENT_IMAGE_MESSAGES);
-        if history.len() < 2 || compressor::estimate_tokens(history) < COMPRESSION_THRESHOLD_TOKENS
+        // 子 agent 没有可交互的人，不走询问那条路：始终按阈值自动压，否则只会一路撑到 413。
+        if history.len() < 2 || compressor::estimate_tokens(history) < self.compact_threshold_tokens
         {
             return;
         }
@@ -2065,7 +2083,12 @@ impl LlmAgent {
             reg.replace_history(sid, history.clone());
         }
         let est = compressor::estimate_tokens(&history);
-        if est < COMPRESSION_THRESHOLD_TOKENS {
+        // 关掉自动压缩时，阈值改为「相对上次拒绝时的体量」再涨一个阈值才提示：
+        // 否则选了「否」之后，后面每一轮都在超阈值状态，会变成每轮弹窗。
+        let trigger_at = self
+            .compact_threshold_tokens
+            .saturating_add(reg.compact_declined_at(sid).unwrap_or(0));
+        if est < trigger_at {
             return;
         }
         let Some(boundary) = compressor::compress_boundary(&history, KEEP_RECENT_TOKENS) else {
@@ -2075,6 +2098,31 @@ impl LlmAgent {
         // 反而白花一次摘要调用并可能每轮重触发——直接跳过，照常带着大上下文继续。
         if compressor::estimate_tokens(&history[..boundary]) < MIN_COMPRESS_PREFIX_TOKENS {
             return;
+        }
+
+        // 关闭自动压缩：问一次，由用户定夺。摘要会丢原文细节，写文书/审条款这类活
+        // 宁可带着大上下文继续，也不能被静默摘要掉。
+        if !self.auto_compact_context {
+            let ask = format!(
+                "上下文已约 {} tok（阈值 {}）。压缩会把较早的对话摘要化，可能丢失原文细节。现在压缩吗？",
+                fmt_tokens(est as u64),
+                fmt_tokens(self.compact_threshold_tokens as u64),
+            );
+            if !self.confirm_raw(reg, sid, &ask).await {
+                // 记下「拒绝时的体量」作为新基准：再增长一个阈值才会重新询问。
+                reg.set_compact_declined_at(sid, Some(est));
+                reg.publish(
+                    sid,
+                    ServerEvent::Info {
+                        session_id: sid.to_string(),
+                        message: format!(
+                            "已跳过压缩，继续携带完整上下文（再增约 {} tok 后会重新询问）",
+                            fmt_tokens(self.compact_threshold_tokens as u64)
+                        ),
+                    },
+                );
+                return;
+            }
         }
 
         // 压缩本身是一次额外 LLM 调用，可能耗时——给可见进度：先报「在压多大」，
@@ -2137,6 +2185,8 @@ impl LlmAgent {
                 }
                 let new_est = compressor::estimate_tokens(&new_history);
                 reg.replace_history(sid, new_history);
+                // 已经压过，历史变小，拒绝基准作废，回到按绝对阈值判定。
+                reg.set_compact_declined_at(sid, None);
                 reg.publish(
                     sid,
                     ServerEvent::Info {
@@ -2333,6 +2383,13 @@ impl LlmAgent {
 
     /// 发起一次确认并阻塞等待用户回应（超时按拒绝）。
     async fn confirm(&self, reg: &SessionRegistry, sid: &str, message: &str) -> bool {
+        self.confirm_raw(reg, sid, &format!("允许执行：{message} ?"))
+            .await
+    }
+
+    /// 同 [`Self::confirm`]，但提示语原样发出（不套「允许执行：」前缀）。
+    /// 用于工具调用之外的征询，例如「是否压缩上下文」。
+    async fn confirm_raw(&self, reg: &SessionRegistry, sid: &str, message: &str) -> bool {
         let id = format!(
             "conf_{}",
             CONF_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
@@ -2343,7 +2400,7 @@ impl LlmAgent {
             ServerEvent::RequestConfirmation {
                 session_id: sid.to_string(),
                 id,
-                message: format!("允许执行：{message} ?"),
+                message: message.to_string(),
                 default: false,
             },
         );

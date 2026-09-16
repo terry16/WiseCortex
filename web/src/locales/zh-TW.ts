@@ -302,6 +302,14 @@ export const zhTW = {
   "settings.access.autotrimSub": "圖片只發一次，不隨後續每輪重複帶上；壓縮上下文時也一併丟棄",
   "settings.access.autotrimHelp":
     "截圖/圖片是上下文裡最貴的東西——一張動輒上千 token，且預設每一輪都會原樣重發一遍。開啟後：圖片只在發出它的那一輪進上下文，後續輪次自動省略（轉成一行文字佔位），壓縮歷史時同樣丟棄。UI 改動、跑測試這類場景看過就沒用了；需要反覆比對同一張圖時再關掉。",
+  "settings.access.autocompact": "自動壓縮上下文",
+  "settings.access.autocompactSub": "上下文超過閾值時自動摘要較早的對話；關閉後改為詢問你",
+  "settings.access.autocompactHelp":
+    "壓縮會把較早的對話換成一段摘要，省 token，但原文措辭、數字、條款細節會遺失。撰寫文書、審合約、處理法律文件這類依賴原文的工作建議關掉——關掉後到達閾值會先問你一次，選「否」就繼續帶著完整上下文，等再漲一個閾值才會重新詢問，不會每輪都打擾你。",
+  "settings.access.compactThreshold": "壓縮閾值（token）",
+  "settings.access.compactThresholdPlaceholder": "留空=預設 60000",
+  "settings.access.compactThresholdHint":
+    "歷史超過該估算值即觸發壓縮（或詢問）。調大更能保住細節，但離模型上下文上限更近；最低 25000。",
 
   // settings — MCP
   "settings.mcp.title": "MCP 伺服器",
@@ -354,6 +362,10 @@ export const zhTW = {
   "settings.status.automemOn": "自動記憶已開啟（重啟伺服端生效）",
   "settings.status.autotrimOn": "已開啟自動最佳化上下文（圖片只發一次）",
   "settings.status.autotrimOff": "已關閉自動最佳化上下文（圖片每輪都重發）",
+  "settings.status.autocompactOn": "已開啟自動壓縮上下文",
+  "settings.status.autocompactOff": "已關閉自動壓縮上下文（到達閾值時詢問）",
+  "settings.status.compactThreshold": "壓縮閾值已設為 {v} token",
+  "settings.status.compactThresholdDefault": "壓縮閾值已恢復預設（60000）",
   "settings.status.automemOff": "自動記憶已關閉（重啟伺服端生效）",
 
   // settings — model modal

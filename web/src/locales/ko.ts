@@ -316,6 +316,15 @@ export const ko = {
     "이미지는 한 번만 전송하고 이후 턴에서는 생략하며, 압축 시에도 버립니다",
   "settings.access.autotrimHelp":
     "이미지는 컨텍스트에서 가장 비싼 요소입니다 — 스크린샷 한 장이 쉽게 1000 토큰이며, 기본값에서는 매 턴마다 그대로 다시 전송됩니다. 켜면 이미지는 보낸 턴에만 컨텍스트에 포함되고 이후에는 한 줄 자리표시자로 대체되며, 기록 압축 시에도 버려집니다. UI 수정이나 테스트 실행에서는 한 번 보면 충분합니다. 같은 이미지를 반복해서 비교해야 할 때만 끄세요.",
+  "settings.access.autocompact": "컨텍스트 자동 압축",
+  "settings.access.autocompactSub":
+    "임계값을 넘으면 이전 대화를 자동 요약합니다. 끄면 대신 확인을 요청합니다",
+  "settings.access.autocompactHelp":
+    "압축하면 이전 대화가 요약으로 대체됩니다. 토큰은 절약되지만 원문 표현, 수치, 조항 세부사항은 사라집니다. 문서 작성, 계약 검토, 법률 업무처럼 원문이 중요한 작업에서는 끄는 것을 권합니다. 끄면 임계값 도달 시 한 번만 확인하며, '아니오'를 선택하면 전체 컨텍스트를 유지합니다. 다시 묻는 것은 임계값만큼 더 늘어난 뒤이며 매 턴 묻지 않습니다.",
+  "settings.access.compactThreshold": "압축 임계값(token)",
+  "settings.access.compactThresholdPlaceholder": "비우면 기본값 60000",
+  "settings.access.compactThresholdHint":
+    "기록이 이 추정치를 넘으면 압축(또는 확인)이 시작됩니다. 크게 잡으면 세부사항이 더 남지만 모델 컨텍스트 한계에 가까워집니다. 최소 25000.",
 
   // settings — MCP
   "settings.mcp.title": "MCP 서버",
@@ -368,6 +377,10 @@ export const ko = {
   "settings.status.automemOn": "자동 메모리를 켰습니다(서버 재시작 시 적용)",
   "settings.status.autotrimOn": "컨텍스트 자동 최적화 켬(이미지 1회만 전송)",
   "settings.status.autotrimOff": "컨텍스트 자동 최적화 끔(이미지 매 턴 재전송)",
+  "settings.status.autocompactOn": "컨텍스트 자동 압축 켬",
+  "settings.status.autocompactOff": "컨텍스트 자동 압축 끔(임계값에서 확인)",
+  "settings.status.compactThreshold": "압축 임계값을 {v} token으로 설정했습니다",
+  "settings.status.compactThresholdDefault": "압축 임계값을 기본값(60000)으로 되돌렸습니다",
   "settings.status.automemOff": "자동 메모리를 껐습니다(서버 재시작 시 적용)",
 
   // settings — model modal

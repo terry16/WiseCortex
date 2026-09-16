@@ -318,6 +318,15 @@ export const ja = {
     "画像は 1 回だけ送信し、以降のターンでは省略。圧縮時も画像を破棄します",
   "settings.access.autotrimHelp":
     "画像はコンテキストで最も高価です——スクリーンショット 1 枚で軽く 1000 トークン、しかも既定では毎ターンそのまま再送されます。オンにすると、画像は送信したターンだけコンテキストに入り、以降は 1 行のプレースホルダに置き換えられ、履歴圧縮時にも破棄されます。UI 修正やテスト実行では一度見れば十分です。同じ画像を繰り返し見比べたいときだけオフにしてください。",
+  "settings.access.autocompact": "コンテキストの自動圧縮",
+  "settings.access.autocompactSub":
+    "しきい値を超えたら古い対話を自動で要約します。オフにすると確認を求めます",
+  "settings.access.autocompactHelp":
+    "圧縮すると古い対話は要約に置き換わります。トークンは節約できますが、原文の言い回し・数値・条項の細部は失われます。文書作成や契約レビュー、法務の作業ではオフを推奨します。オフの場合はしきい値に達した時点で一度だけ確認し、「いいえ」を選べば完全なコンテキストのまま継続します。次の確認はさらにしきい値ぶん増えてからで、毎ターン尋ねることはありません。",
+  "settings.access.compactThreshold": "圧縮しきい値（token）",
+  "settings.access.compactThresholdPlaceholder": "空欄=既定 60000",
+  "settings.access.compactThresholdHint":
+    "履歴がこの推定値を超えると圧縮（または確認）を行います。大きくすると詳細は残りますが、モデルのコンテキスト上限に近づきます。最小 25000。",
 
   // settings — MCP
   "settings.mcp.title": "MCP サーバー",
@@ -373,6 +382,11 @@ export const ja = {
   "settings.status.automemOn": "自動メモリを有効化しました（サーバー再起動で反映）",
   "settings.status.autotrimOn": "コンテキスト自動最適化をオンにしました（画像は 1 回だけ）",
   "settings.status.autotrimOff": "コンテキスト自動最適化をオフにしました（画像を毎ターン再送）",
+  "settings.status.autocompactOn": "コンテキストの自動圧縮をオンにしました",
+  "settings.status.autocompactOff":
+    "コンテキストの自動圧縮をオフにしました（しきい値で確認します）",
+  "settings.status.compactThreshold": "圧縮しきい値を {v} token に設定しました",
+  "settings.status.compactThresholdDefault": "圧縮しきい値を既定（60000）に戻しました",
   "settings.status.automemOff": "自動メモリを無効化しました（サーバー再起動で反映）",
 
   // settings — model modal

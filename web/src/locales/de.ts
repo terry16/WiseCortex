@@ -330,6 +330,15 @@ export const de = {
     "Bilder werden nur einmal gesendet; spätere Runden lassen sie weg, das Komprimieren ebenfalls",
   "settings.access.autotrimHelp":
     "Bilder sind das Teuerste im Kontext — ein Screenshot kostet schnell tausend Tokens und wird standardmäßig in jeder Runde erneut mitgeschickt. Ist die Option an, gelangt ein Bild nur in die Runde, in der es gesendet wurde; spätere Runden ersetzen es durch einen einzeiligen Platzhalter, und beim Komprimieren des Verlaufs fallen Bilder ebenfalls weg. Bei UI-Änderungen oder Testläufen ist das Bild nach einmaligem Ansehen wertlos; schalte die Option aus, wenn du dasselbe Bild wiederholt vergleichen musst.",
+  "settings.access.autocompact": "Kontext automatisch komprimieren",
+  "settings.access.autocompactSub":
+    "Ältere Verläufe werden ab dem Schwellwert zusammengefasst; ausgeschaltet wirst du stattdessen gefragt",
+  "settings.access.autocompactHelp":
+    "Beim Komprimieren werden frühere Verläufe durch eine Zusammenfassung ersetzt. Das spart Token, doch genauer Wortlaut, Zahlen und Klauseldetails gehen verloren. Für Schriftsätze, Vertragsprüfung oder juristische Arbeit besser ausschalten — dann wirst du beim Erreichen des Schwellwerts einmal gefragt. Bei „Nein“ bleibt der vollständige Kontext erhalten; erneut gefragt wirst du erst nach einem weiteren Schwellwert, nicht in jeder Runde.",
+  "settings.access.compactThreshold": "Komprimierungsschwelle (Token)",
+  "settings.access.compactThresholdPlaceholder": "Leer = Standard 60000",
+  "settings.access.compactThresholdHint":
+    "Übersteigt der Verlauf diesen Schätzwert, wird komprimiert (oder gefragt). Höher bewahrt mehr Details, liegt aber näher am Kontextlimit des Modells; Minimum 25000.",
 
   // settings — MCP
   "settings.mcp.title": "MCP-Server",
@@ -386,6 +395,12 @@ export const de = {
   "settings.status.automemOn": "Auto-Memory aktiviert (Serverneustart zum Übernehmen)",
   "settings.status.autotrimOn": "Kontext-Schlankhaltung an (jedes Bild nur einmal)",
   "settings.status.autotrimOff": "Kontext-Schlankhaltung aus (Bilder in jeder Runde erneut)",
+  "settings.status.autocompactOn": "Automatische Kontextkomprimierung ein",
+  "settings.status.autocompactOff":
+    "Automatische Kontextkomprimierung aus (Nachfrage beim Schwellwert)",
+  "settings.status.compactThreshold": "Komprimierungsschwelle auf {v} Token gesetzt",
+  "settings.status.compactThresholdDefault":
+    "Komprimierungsschwelle auf Standard (60000) zurückgesetzt",
   "settings.status.automemOff": "Auto-Memory deaktiviert (Serverneustart zum Übernehmen)",
 
   // settings — model modal

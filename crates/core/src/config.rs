@@ -207,6 +207,16 @@ pub struct AppConfig {
     /// 才需要关掉它。关掉即回到「历史里的图片每轮都原样重发」。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_trim_context: Option<bool>,
+    /// 自动压缩上下文：历史超过阈值时自动摘要重建。None=默认开启。
+    ///
+    /// 摘要难免丢细节。写文书、审法律条款这类依赖原文逐字措辞的活，被摘要一次就废了；
+    /// 关掉后不再自动压，改为到达阈值时询问一次，由你决定压不压。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_compact_context: Option<bool>,
+    /// 触发上下文压缩（或询问）的 token 阈值。None=默认 60000。
+    /// 调大更能保住细节，但离模型上下文上限也更近；过小则频繁摘要、细节流失快。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compact_threshold_tokens: Option<usize>,
     /// 推理强度 / extended thinking：low | medium | high；空/None=关闭（不带 thinking）。
     /// 对 Anthropic 走 thinking+output_config，对 OpenAI 兼容走 reasoning_effort。
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -273,6 +283,11 @@ pub struct AppConfig {
 /// 单个定时任务日志文件的默认体积上限（MB，未配置时）。
 pub const CRON_LOG_MAX_MB_DEFAULT: u32 = 10;
 
+/// 上下文压缩阈值默认值（token 估算）。
+pub const COMPACT_THRESHOLD_TOKENS_DEFAULT: usize = 60_000;
+/// 阈值下限：压缩会保留约 20k 最近消息，阈值低于这个数就会刚压完又立刻触发。
+pub const COMPACT_THRESHOLD_TOKENS_MIN: usize = 25_000;
+
 impl AppConfig {
     /// 生效的单任务日志体积上限（字节）。关闭自动清理时返回 0，调用方据此整体跳过。
     /// 配 0 MB 会被抬到 1 MB——避免「上限 0」被理解成把日志清空。
@@ -290,6 +305,19 @@ impl AppConfig {
     /// 是否开启「自动优化上下文」（图片只发一次）。未配置=开启。
     pub fn auto_trim_context_effective(&self) -> bool {
         self.auto_trim_context.unwrap_or(true)
+    }
+
+    /// 是否开启「自动压缩上下文」。未配置=开启。关闭后到达阈值只询问、不自动压。
+    pub fn auto_compact_context_effective(&self) -> bool {
+        self.auto_compact_context.unwrap_or(true)
+    }
+
+    /// 生效的上下文压缩阈值（token）。未配置=默认；配得过小会导致刚压完又触发，
+    /// 故抬到下限——压缩要保留的最近段本身就占掉约 20k。
+    pub fn compact_threshold_tokens_effective(&self) -> usize {
+        self.compact_threshold_tokens
+            .unwrap_or(COMPACT_THRESHOLD_TOKENS_DEFAULT)
+            .max(COMPACT_THRESHOLD_TOKENS_MIN)
     }
 
     /// 当前生效的配置档：优先 active_llm 指向的，否则第一个。
@@ -544,6 +572,37 @@ mod tests {
             api_key: Some("sk-x".into()),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn compact_defaults_are_on_with_60k_threshold() {
+        let c = AppConfig::default();
+        assert!(c.auto_compact_context_effective(), "未配置时应默认自动压缩");
+        assert_eq!(c.compact_threshold_tokens_effective(), 60_000);
+    }
+
+    #[test]
+    fn compact_can_be_disabled_and_threshold_overridden() {
+        let c = AppConfig {
+            auto_compact_context: Some(false),
+            compact_threshold_tokens: Some(120_000),
+            ..Default::default()
+        };
+        assert!(!c.auto_compact_context_effective());
+        assert_eq!(c.compact_threshold_tokens_effective(), 120_000);
+    }
+
+    /// 阈值配得比「压缩后保留的最近段」还小会导致刚压完又立刻触发，故有下限。
+    #[test]
+    fn compact_threshold_is_clamped_to_a_floor() {
+        let c = AppConfig {
+            compact_threshold_tokens: Some(1_000),
+            ..Default::default()
+        };
+        assert_eq!(
+            c.compact_threshold_tokens_effective(),
+            COMPACT_THRESHOLD_TOKENS_MIN
+        );
     }
 
     /// 回归：订阅档（OAuth）没有 api_key，但**完全可用**。

@@ -416,6 +416,19 @@ export function mountSettingsView(container: HTMLElement): { refresh: () => void
             </div>
             <button id="sv-autotrim-toggle" class="toggle"></button>
           </div>
+          <div class="divider"></div>
+          <div class="switch-row">
+            <div class="sr-main">
+              <div class="sr-title">${t("settings.access.autocompact")}<span class="help-dot" title="${t("settings.access.autocompactHelp")}">${icon("help", 15)}</span></div>
+              <div class="sr-sub">${t("settings.access.autocompactSub")}</div>
+            </div>
+            <button id="sv-autocompact-toggle" class="toggle"></button>
+          </div>
+          <div class="field" style="margin:0">
+            <label>${t("settings.access.compactThreshold")}</label>
+            <input id="sv-compact-threshold" class="input mono" inputmode="numeric" style="width:160px" placeholder="${t("settings.access.compactThresholdPlaceholder")}" />
+            <div class="hint">${t("settings.access.compactThresholdHint")}</div>
+          </div>
         </div>
       </div>
 
@@ -862,6 +875,8 @@ export function mountSettingsView(container: HTMLElement): { refresh: () => void
   const confirmToggle = $<HTMLButtonElement>("#sv-confirm-toggle");
   const autoMemToggle = $<HTMLButtonElement>("#sv-automem-toggle");
   const autoTrimToggle = $<HTMLButtonElement>("#sv-autotrim-toggle");
+  const autoCompactToggle = $<HTMLButtonElement>("#sv-autocompact-toggle");
+  const compactThresholdInput = $<HTMLInputElement>("#sv-compact-threshold");
   const defaultSel = $<HTMLSelectElement>("#sv-default");
   const workspaceInput = $<HTMLInputElement>("#sv-workspace");
   const workspacePick = $<HTMLButtonElement>("#sv-workspace-pick");
@@ -965,6 +980,9 @@ export function mountSettingsView(container: HTMLElement): { refresh: () => void
       autoMemToggle.classList.toggle("on", cfg.auto_memory === true);
       // 未配置时服务端已折算成默认开启，这里直接照搬即可。
       autoTrimToggle.classList.toggle("on", cfg.auto_trim_context !== false);
+      autoCompactToggle.classList.toggle("on", cfg.auto_compact_context !== false);
+      compactThresholdInput.value =
+        cfg.compact_threshold_tokens != null ? String(cfg.compact_threshold_tokens) : "";
       workspaceInput.value = (cfg.workspace as string) ?? "";
       workspaceHint.textContent = isTauri()
         ? t("settings.workspace.hintTauri")
@@ -1253,6 +1271,29 @@ export function mountSettingsView(container: HTMLElement): { refresh: () => void
       setStatus(on ? t("settings.status.autotrimOn") : t("settings.status.autotrimOff")),
     );
   };
+  autoCompactToggle.onclick = () => {
+    const on = !autoCompactToggle.classList.contains("on");
+    autoCompactToggle.classList.toggle("on", on);
+    void api("/api/config", {
+      method: "POST",
+      body: JSON.stringify({ auto_compact_context: on }),
+    }).then(() =>
+      setStatus(on ? t("settings.status.autocompactOn") : t("settings.status.autocompactOff")),
+    );
+  };
+  compactThresholdInput.addEventListener("change", () => {
+    const v = compactThresholdInput.value.trim();
+    void api("/api/config", {
+      method: "POST",
+      body: JSON.stringify({ compact_threshold_tokens: v }),
+    }).then(() =>
+      setStatus(
+        v === ""
+          ? t("settings.status.compactThresholdDefault")
+          : t("settings.status.compactThreshold", { v }),
+      ),
+    );
+  });
 
   // ── 添加 / 编辑模型弹窗 ──
   function openModal(row?: LlmRow): void {
