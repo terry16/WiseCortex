@@ -32,8 +32,75 @@ pub fn external_bind_allowed(ip: std::net::IpAddr, has_access_key: bool) -> bool
     ip.is_loopback() || has_access_key
 }
 
+/// 桌面端端口顺延的尝试上限：首选端口被占就往后数，最多试这么多个。
+/// 有界是故意的：真碰上整段被占，应该报错给人看，而不是无限扫端口。
+pub const PORT_SCAN_LIMIT: u16 = 10;
+
+/// 从 `start` 开始依次尝试绑定，返回第一个绑得上的 listener。
+///
+/// 桌面端专用：端口被占（上次退出残留的进程、别的软件占了 7070）时，旧实现
+/// 直接 bind 失败 → 内嵌后端静默死掉 → 前端连不上只看到「要密钥」和空配置，
+/// 真正的原因（端口冲突）用户无从得知。顺延一个可用端口就能继续跑。
+///
+/// 只对「端口被占用」顺延；其它错误（如权限不足、地址不可用）直接上报——
+/// 那些换个端口也好不了，掩盖它们只会把故障变得更难查。
+pub async fn bind_with_fallback(
+    start: std::net::SocketAddr,
+    tries: u16,
+) -> std::io::Result<tokio::net::TcpListener> {
+    let mut last_err = None;
+    for offset in 0..tries.max(1) {
+        let port = match start.port().checked_add(offset) {
+            Some(p) => p,
+            None => break, // 端口号溢出（贴近 65535），不再往后试。
+        };
+        let mut addr = start;
+        addr.set_port(port);
+        match tokio::net::TcpListener::bind(addr).await {
+            Ok(l) => return Ok(l),
+            Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
+                last_err = Some(e);
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    Err(last_err
+        .unwrap_or_else(|| std::io::Error::new(std::io::ErrorKind::AddrInUse, "没有可用端口")))
+}
+
 /// 在 `addr` 上起 WS server（从配置/环境构造 Agent）。供 CLI 二进制与桌面壳共用。
 pub async fn run(addr: std::net::SocketAddr) -> std::io::Result<()> {
+    // 护栏必须在 bind **之前**：否则绑 0.0.0.0 会有一个真实监听的瞬时窗口，
+    // 哪怕随后立刻报错退出，那一瞬间服务已经对外网可达了。
+    bind_guard(addr)?;
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    serve_on(listener).await
+}
+
+/// 外网绑定护栏检查：绑非回环却没设 access_key 时返回错误。
+fn bind_guard(addr: std::net::SocketAddr) -> std::io::Result<()> {
+    let has_key = std::env::var("WC_ACCESS_KEY")
+        .ok()
+        .or_else(|| wisecortex_core::config::load().access_key)
+        .is_some_and(|k| !k.is_empty());
+    if external_bind_allowed(addr.ip(), has_key) {
+        return Ok(());
+    }
+    Err(std::io::Error::new(
+        std::io::ErrorKind::PermissionDenied,
+        format!(
+            "拒绝启动：绑定到非回环地址 {addr} 暴露到外网，但未设置 access_key。\n\
+             请先设置 access_key（设置面板 / WC_ACCESS_KEY），或改回绑定 127.0.0.1 并用 nginx 反代。"
+        ),
+    ))
+}
+
+/// 准备好 `AppState` 并拉起各后台任务（调度器、飞书/QQ/微信长连接）。
+/// 抽出来是为了让 [`run`] 与 [`serve_on`] 共用同一套启动流程，避免两份实现漂移。
+async fn prepare_state(addr: std::net::SocketAddr) -> std::io::Result<AppState> {
+    // 护栏：绑到非回环地址（对外网）却没设 access_key → 拒绝启动，避免裸奔。
+    // run() 已在 bind 前查过一次；这里再查是给直接调 serve_on 的调用方（桌面壳）兜底。
+    bind_guard(addr)?;
     // 启动即把内置技能播种到数据目录（开箱即带、可卸载、卸载后不回来）。
     wisecortex_core::marketplace::seed_builtins();
     // MCP sampling：注册处理器（服务端反向请求我们跑 LLM），须在连接 MCP 前就绪。
@@ -53,16 +120,6 @@ pub async fn run(addr: std::net::SocketAddr) -> std::io::Result<()> {
         .or_else(|| wisecortex_core::config::load().access_key)
         .filter(|k| !k.is_empty());
 
-    // 护栏：绑到非回环地址（对外网）却没设 access_key → 拒绝启动，避免裸奔。
-    if !external_bind_allowed(addr.ip(), access_key.is_some()) {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::PermissionDenied,
-            format!(
-                "拒绝启动：绑定到非回环地址 {addr} 暴露到外网，但未设置 access_key。\n\
-                 请先设置 access_key（设置面板 / WC_ACCESS_KEY），或改回绑定 127.0.0.1 并用 nginx 反代。"
-            ),
-        ));
-    }
     wisecortex_core::sprintln!(
         "access: {}",
         if access_key.is_some() {
@@ -94,7 +151,16 @@ pub async fn run(addr: std::net::SocketAddr) -> std::io::Result<()> {
     // 微信 ClawBot 长轮询（仅当启用且已扫码时；免公网回调，故桌面端同样可用）。
     clawbot_poll::spawn(state.agent.clone(), state.registry.clone());
 
-    let listener = tokio::net::TcpListener::bind(addr).await?;
+    Ok(state)
+}
+
+/// 在已绑定的 listener 上提供服务。
+///
+/// 与 [`run`] 的区别：调用方自己完成 bind，因而能在**启动前**拿到真实端口——
+/// 桌面端需要这个来把实际端口注入前端（端口可能因冲突顺延，不再恒为 7070）。
+pub async fn serve_on(listener: tokio::net::TcpListener) -> std::io::Result<()> {
+    let addr = listener.local_addr()?;
+    let state = prepare_state(addr).await?;
     wisecortex_core::sprintln!("listening on http://{addr} (ws: /ws)");
     axum::serve(listener, app(state)).await
 }
@@ -106,6 +172,28 @@ mod tests {
     #[test]
     fn banner_mentions_core() {
         assert!(super::banner().contains("core"));
+    }
+
+    #[tokio::test]
+    async fn bind_with_fallback_skips_occupied_port() {
+        // 先占住一个端口，再从它开始要求顺延：应拿到别的端口，而不是失败。
+        let squatter = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let taken = squatter.local_addr().unwrap();
+
+        let got = super::bind_with_fallback(taken, 5).await.unwrap();
+        let got_addr = got.local_addr().unwrap();
+        assert_ne!(got_addr.port(), taken.port(), "应跳过被占端口");
+        assert!(got_addr.port() > taken.port(), "应往后顺延");
+    }
+
+    #[tokio::test]
+    async fn bind_with_fallback_reports_when_all_taken() {
+        // tries=1 且该端口被占 → 没有退路，必须报 AddrInUse 而不是静默成功。
+        let squatter = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let taken = squatter.local_addr().unwrap();
+
+        let err = super::bind_with_fallback(taken, 1).await.unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::AddrInUse);
     }
 
     #[test]

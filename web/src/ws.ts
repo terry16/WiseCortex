@@ -19,6 +19,12 @@ export interface WsAuth {
   getKey(): string | null;
   reset(): void;
   check(): void;
+  /**
+   * 可选：探一次后端，判断 1006 到底是「没连上服务」还是「真的要密钥」。
+   * 返回 true = 确实需要/缺少密钥；返回 false = 后端不可达或无需密钥。
+   * 不提供时退化为旧行为（1006 即认为鉴权问题）。
+   */
+  probeNeedsKey?(): Promise<boolean>;
 }
 
 export interface WsClientOptions {
@@ -129,12 +135,31 @@ export function createWsClient(opts: WsClientOptions = {}): WsClient {
   }
 
   function onClose(e: CloseEvent): void {
-    // 1006 = 异常关闭（握手被拒，多半 401）
+    // 1006 = 连接异常断开。注意：这**不等于** 401——后端根本没监听（端口被占、
+    // 进程没起来）同样是 1006。早先的实现一律当鉴权失败，于是一上来就 clearKey +
+    // 弹密钥框，把「服务挂了」误报成「要密钥」，用户看到的是配置全空，以为数据丢了。
+    // 故先探一次 /api/auth/status（该接口无需鉴权），确认确实缺密钥再弹框。
     if (e.code === 1006 && !auth.passed) {
-      auth.reset();
-      auth.check();
+      if (!auth.probeNeedsKey) {
+        auth.reset();
+        auth.check();
+        return;
+      }
+      void auth.probeNeedsKey().then((needsKey) => {
+        if (needsKey) {
+          auth.reset();
+          auth.check();
+          return;
+        }
+        // 后端不可达：别动密钥（清了用户下次还得重输），当普通掉线重连。
+        scheduleReconnect();
+      });
       return;
     }
+    scheduleReconnect();
+  }
+
+  function scheduleReconnect(): void {
     ready = false;
     socket = null;
     console.warn(`[WS] closed — retry in ${retryDelay}ms`);

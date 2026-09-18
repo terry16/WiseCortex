@@ -19,4 +19,6 @@ tauri-plugin-os = "2"
 # 关掉宿主窗口导致其余窗口 WS 全断）。
 tauri-plugin-single-instance = "2"
 wisecortex-server.workspace = true
+# buglog：把内嵌后端的启动失败落盘到 error.log（GUI 下没有控制台，eprintln 无人可见）。
+wisecortex-core.workspace = true
 tokio.workspace = true

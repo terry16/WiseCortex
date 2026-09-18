@@ -6184,6 +6184,7 @@ dependencies = [
  "tauri-plugin-os",
  "tauri-plugin-single-instance",
  "tokio",
+ "wisecortex-core",
  "wisecortex-server",
 ]
 

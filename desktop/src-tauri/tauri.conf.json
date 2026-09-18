@@ -9,13 +9,7 @@
   },
   "app": {
     "withGlobalTauri": true,
-    "windows": [
-      {
-        "title": "WiseCortex",
-        "width": 1200,
-        "height": 800
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": null
     }

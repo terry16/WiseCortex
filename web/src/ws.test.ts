@@ -114,4 +114,51 @@ describe("ws transport", () => {
     vi.advanceTimersByTime(60_000);
     expect(MockWebSocket.instances).toHaveLength(1); // no reconnect attempted
   });
+
+  // 1006 只代表「连接异常断开」：后端没监听（端口被占、进程没起）同样是 1006。
+  // 探测确认不缺密钥时必须当普通掉线重连，绝不能清掉用户已存的密钥。
+  it("on 1006 close, 探测判定后端不可达 → 重连且不动密钥", async () => {
+    const auth: WsAuth = {
+      passed: false,
+      getKey: () => null,
+      reset: vi.fn(),
+      check: vi.fn(),
+      probeNeedsKey: vi.fn().mockResolvedValue(false),
+    };
+    const ws = createWsClient({
+      socketFactory: factory,
+      url: () => "ws://x/ws",
+      auth,
+      initialDelay: 1,
+    });
+    ws.connect();
+    MockWebSocket.last.fireOpen();
+    MockWebSocket.last.fireClose(1006);
+    await vi.waitFor(() => expect(auth.probeNeedsKey).toHaveBeenCalled());
+    expect(auth.reset).not.toHaveBeenCalled();
+    expect(auth.check).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(MockWebSocket.instances.length).toBeGreaterThan(1));
+  });
+
+  it("on 1006 close, 探测判定确实缺密钥 → 弹密钥框且不重连", async () => {
+    const auth: WsAuth = {
+      passed: false,
+      getKey: () => null,
+      reset: vi.fn(),
+      check: vi.fn(),
+      probeNeedsKey: vi.fn().mockResolvedValue(true),
+    };
+    const ws = createWsClient({
+      socketFactory: factory,
+      url: () => "ws://x/ws",
+      auth,
+      initialDelay: 1,
+    });
+    ws.connect();
+    MockWebSocket.last.fireOpen();
+    MockWebSocket.last.fireClose(1006);
+    await vi.waitFor(() => expect(auth.check).toHaveBeenCalled());
+    expect(auth.reset).toHaveBeenCalled();
+    expect(MockWebSocket.instances).toHaveLength(1);
+  });
 });

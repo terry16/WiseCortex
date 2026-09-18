@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { backendHost, httpBase, isTauri, wsBase } from "./backend";
+import { backendHost, backendPort, httpBase, isTauri, wsBase } from "./backend";
 
 const browser = { hostname: "203.0.113.10", protocol: "http:", host: "203.0.113.10" };
 const browserTls = { hostname: "app.example.com", protocol: "https:", host: "app.example.com" };
@@ -26,6 +26,18 @@ describe("backendHost", () => {
   it("falls back to 127.0.0.1 in Tauri-like environments", () => {
     expect(backendHost(tauriWin)).toBe("127.0.0.1");
     expect(backendHost(tauriProto)).toBe("127.0.0.1");
+  });
+});
+
+describe("backendPort", () => {
+  it("读桌面壳注入的实际端口（7070 被占时会顺延）", () => {
+    expect(backendPort({ __WC_PORT__: 7073 })).toBe(7073);
+  });
+  it("未注入 / 非法值时回退 7070", () => {
+    expect(backendPort({})).toBe(7070);
+    expect(backendPort({ __WC_PORT__: 0 })).toBe(7070);
+    expect(backendPort({ __WC_PORT__: 70000 })).toBe(7070);
+    expect(backendPort({ __WC_PORT__: "7071" })).toBe(7070);
   });
 });
 
