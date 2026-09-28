@@ -107,6 +107,7 @@ export const zhCN = {
   "chat.done.cache": "缓存命中 {rate}%（{hits}/{total}，{tokens}）",
   "chat.interrupted": "已中断",
   "chat.queued": "⏳ 已加入队列，将在当前回合结束后自动处理",
+  "chat.queuedOffline": "⚠️ 尚未连接到后端，消息已暂存，连接恢复后会自动发送",
   "chat.retry": "重试",
   "chat.retrying": "重试中…",
   "error.insufficient_credit": "余额不足",

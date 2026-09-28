@@ -108,6 +108,8 @@ export const ko = {
   "chat.done.cache": "캐시 적중 {rate}% ({hits}/{total}, {tokens})",
   "chat.interrupted": "중단됨",
   "chat.queued": "⏳ 대기열에 추가됨 — 현재 턴이 끝나면 자동 처리됩니다",
+  "chat.queuedOffline":
+    "⚠️ 백엔드에 연결되지 않았습니다. 메시지는 대기 중이며 연결이 복구되면 전송됩니다",
   "chat.retry": "재시도",
   "chat.retrying": "재시도 중…",
   "error.insufficient_credit": "잔액 부족",

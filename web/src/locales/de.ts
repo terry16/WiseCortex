@@ -114,6 +114,8 @@ export const de = {
   "chat.done.cache": "Cache-Treffer {rate}% ({hits}/{total}, {tokens})",
   "chat.interrupted": "Abgebrochen",
   "chat.queued": "⏳ In Warteschlange — läuft automatisch nach der aktuellen Runde",
+  "chat.queuedOffline":
+    "⚠️ Noch keine Verbindung zum Backend — die Nachricht wurde zwischengespeichert und wird nach Wiederherstellung gesendet",
   "chat.retry": "Wiederholen",
   "chat.retrying": "Wird wiederholt…",
   "error.insufficient_credit": "Guthaben unzureichend",

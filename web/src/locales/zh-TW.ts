@@ -107,6 +107,7 @@ export const zhTW = {
   "chat.done.cache": "快取命中 {rate}%（{hits}/{total}，{tokens}）",
   "chat.interrupted": "已中斷",
   "chat.queued": "⏳ 已加入佇列，將在目前回合結束後自動處理",
+  "chat.queuedOffline": "⚠️ 尚未連線到後端，訊息已暫存，連線恢復後會自動送出",
   "chat.retry": "重試",
   "chat.retrying": "重試中…",
   "error.insufficient_credit": "餘額不足",

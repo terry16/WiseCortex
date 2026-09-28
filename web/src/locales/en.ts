@@ -108,6 +108,8 @@ export const en = {
   "chat.done.cache": "Cache hit {rate}% ({hits}/{total}, {tokens})",
   "chat.interrupted": "Interrupted",
   "chat.queued": "⏳ Queued — will run automatically after the current turn",
+  "chat.queuedOffline":
+    "⚠️ Not connected to the backend yet — your message is queued and will be sent once the connection is restored",
   "chat.retry": "Retry",
   "chat.retrying": "Retrying…",
   "error.insufficient_credit": "Insufficient balance",

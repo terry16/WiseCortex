@@ -161,4 +161,34 @@ describe("ws transport", () => {
     expect(auth.reset).toHaveBeenCalled();
     expect(MockWebSocket.instances).toHaveLength(1);
   });
+
+  // 首次连接就没连上（onOpen 从未触发）时也必须点亮离线提示：
+  // 否则 REST 通、WS 不通的「半通」状态界面上零反馈，最容易被误判成数据丢了。
+  it("首次 connect 即派发 _ws_disconnected（让离线横幅亮起来）", () => {
+    const events: string[] = [];
+    const ws = createWsClient({ socketFactory: factory, url: () => "ws://x/ws" });
+    ws.onEvent((e) => events.push(e.type));
+    ws.connect();
+    expect(events).toContain("_ws_disconnected");
+  });
+
+  it("连上之后重连不再重复派发首次离线事件", () => {
+    const events: string[] = [];
+    const ws = createWsClient({ socketFactory: factory, url: () => "ws://x/ws" });
+    ws.onEvent((e) => events.push(e.type));
+    ws.connect();
+    MockWebSocket.last.fireOpen();
+    const before = events.filter((e) => e === "_ws_disconnected").length;
+    ws.connect(); // 已 OPEN，应直接返回
+    expect(events.filter((e) => e === "_ws_disconnected").length).toBe(before);
+  });
+
+  // send 必须如实告知「没发出去」：入队是静默的，用户看不到任何反馈。
+  it("send 未连接时返回 false（仅入队），连上后返回 true", () => {
+    const ws = createWsClient({ socketFactory: factory, url: () => "ws://x/ws" });
+    ws.connect();
+    expect(ws.send({ type: "message", content: "a" })).toBe(false);
+    MockWebSocket.last.fireOpen();
+    expect(ws.send({ type: "message", content: "b" })).toBe(true);
+  });
 });

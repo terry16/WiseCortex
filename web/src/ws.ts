@@ -40,8 +40,8 @@ export interface WsClientOptions {
 export interface WsClient {
   /** 注册服务端事件 handler。 */
   onEvent(fn: WsEventHandler): void;
-  /** 发送消息；未连接时入队。 */
-  send(obj: WsMessage): void;
+  /** 发送消息；未连接时入队。返回是否已真正发出（false = 仅入队）。 */
+  send(obj: WsMessage): boolean;
   /** 记录当前订阅的 session（重连恢复用）。 */
   setSubscribedSession(id: string | null): void;
   /** 启动连接，开机调用一次。 */
@@ -76,6 +76,8 @@ export function createWsClient(opts: WsClientOptions = {}): WsClient {
 
   let socket: WebSocket | null = null;
   let ready = false;
+  /** 是否曾经成功连上过（区分「从未连上」与「连上过又掉线」）。 */
+  let everConnected = false;
   let retryDelay = initialDelay;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
   const queue: WsMessage[] = [];
@@ -109,6 +111,7 @@ export function createWsClient(opts: WsClientOptions = {}): WsClient {
 
   function onOpen(): void {
     ready = true;
+    everConnected = true;
     retryDelay = initialDelay; // 连接成功重置退避
 
     // 重连后总是拉一次最新 session 列表
@@ -192,6 +195,12 @@ export function createWsClient(opts: WsClientOptions = {}): WsClient {
     socket.onmessage = onMessage;
     socket.onclose = onClose;
     socket.onerror = onError;
+    // 首次连接就没连上时也要让界面知道。onOpen 从未触发过 → 没人派发过
+    // _ws_disconnected，离线横幅便一直不亮：REST 通了（模型名、余额都在）但 WS 没通，
+    // 这种「半通」状态过去在界面上零提示，最容易让人误判成数据丢了。
+    if (!everConnected) {
+      dispatch({ type: "_ws_disconnected" });
+    }
   }
 
   return {
@@ -202,12 +211,16 @@ export function createWsClient(opts: WsClientOptions = {}): WsClient {
       if (ready && socket) {
         try {
           rawSend(obj);
-          return;
+          return true;
         } catch {
           // 落到队列
         }
       }
+      // 未连上：入队等重连后重发，并告知调用方「没真的发出去」。
+      // 早先这里是静默入队，用户发完消息看不到任何反馈（无回应、无报错、无转圈），
+      // 只能对着一个死界面猜。
       queue.push(obj);
+      return false;
     },
     setSubscribedSession(id) {
       subscribedId = id;

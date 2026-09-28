@@ -837,7 +837,7 @@ export async function bootstrap(): Promise<void> {
     } catch {
       /* 落库失败仍发送，服务端会用现有/默认配置 */
     }
-    ws.send({
+    const sent = ws.send({
       type: "message",
       session_id: sid,
       content: text,
@@ -845,6 +845,11 @@ export async function bootstrap(): Promise<void> {
       files: docs,
       cwd: c.working_dir || undefined,
     } as WsMessage);
+    // 未连上时消息只是进了队列（重连后会自动补发）。必须说出来——否则用户看到的是
+    // 自己的气泡已上屏、然后永远没有回应，既没转圈也没报错，只能怀疑是不是坏了。
+    if (!sent) {
+      sessions.appendMsg("error", `<span>${escapeHtml(t("chat.queuedOffline"))}</span>`);
+    }
   }
 
   // 首次拿到会话列表后：默认进入「新对话」（历史会话留在侧栏，按需点选），
@@ -945,8 +950,9 @@ export async function bootstrap(): Promise<void> {
   });
 
   // 导航栏底部：当前模型（显示模型 ID）+ 今日成本 + 访问状态。
+  // 返回是否成功拿到配置（供启动期重试判断）。
   let footChecked = false;
-  async function refreshFoot(): Promise<void> {
+  async function refreshFoot(): Promise<boolean> {
     try {
       const cfg = (await (
         await fetch(`${apiBase}/api/config`, { headers: authHeaders() })
@@ -975,12 +981,29 @@ export async function bootstrap(): Promise<void> {
       // 判据由服务端的 llm_ready 给出，别在这里用「有没有 api_key」自行推断。
       if (!cfg.llm_ready && !footChecked) setView("settings");
       footChecked = true;
+      return true;
     } catch {
-      // 后端不可达就不打扰。
+      // 后端不可达（冷启动时内嵌后端可能还在初始化）。
+      return false;
     }
   }
   window.addEventListener("wc:llm-changed", () => void refreshFoot());
-  void refreshFoot();
+
+  /**
+   * 启动期拉配置：失败就退避重试。
+   *
+   * 桌面端的内嵌后端在独立线程里初始化（播种技能、连 MCP、恢复会话），冷启动时可能
+   * 要数秒才就绪，而这里可能早在它之前就发出了请求。早先失败一次就放弃，于是界面
+   * 定格在「模型列表空、设置空」——配置文件其实完好，用户却以为数据丢了。
+   */
+  async function refreshFootUntilReady(): Promise<void> {
+    const delays = [0, 300, 600, 1000, 1500, 2000, 3000, 4000, 5000];
+    for (const d of delays) {
+      if (d) await new Promise((r) => setTimeout(r, d));
+      if (await refreshFoot()) return;
+    }
+  }
+  void refreshFootUntilReady();
 
   // 今日成本：由服务端按本地日期记账（交互对话 + 定时任务都计入，无人值守也不漏），
   // 前端只负责显示。连上推一次初值，之后每次成本变动推 cost_update。

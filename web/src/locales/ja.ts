@@ -108,6 +108,8 @@ export const ja = {
   "chat.done.cache": "キャッシュヒット {rate}%（{hits}/{total}、{tokens}）",
   "chat.interrupted": "中断しました",
   "chat.queued": "⏳ キューに追加しました — 現在のターン終了後に自動処理します",
+  "chat.queuedOffline":
+    "⚠️ バックエンドに未接続です。メッセージは保留中で、接続が回復すると送信されます",
   "chat.retry": "再試行",
   "chat.retrying": "再試行中…",
   "error.insufficient_credit": "残高不足",

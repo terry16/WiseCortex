@@ -26,13 +26,22 @@ fn main() {
     // 内嵌后端：独立线程跑一个 tokio runtime 起 server。
     //
     // 绑定必须在建窗口**之前**完成：前端需要知道真实端口才能连 WS，而端口可能因
-    // 冲突顺延。故这里用 channel 等绑定结果，拿到端口（或失败原因）后再继续。
-    let (tx, rx) = mpsc::channel::<Result<u16, String>>();
+    // 冲突顺延。另外还要等「服务已就绪」：bind 成功不等于能处理请求，中间还要
+    // 播种技能、注册 MCP、恢复会话，冷启动可能耗时数秒。这段窗口期里前端若已开始
+    // 拉配置，就会拿到空数据并定格（用户看到的就是「配置丢了」）。
+    //
+    // 两段信号：Port(端口) 立即到，Ready 在真正可服务时到。
+    enum Boot {
+        Port(u16),
+        Ready,
+        Failed(String),
+    }
+    let (tx, rx) = mpsc::channel::<Boot>();
     thread::spawn(move || {
         let rt = match tokio::runtime::Runtime::new() {
             Ok(rt) => rt,
             Err(e) => {
-                let _ = tx.send(Err(format!("无法创建运行时：{e}")));
+                let _ = tx.send(Boot::Failed(format!("无法创建运行时：{e}")));
                 return;
             }
         };
@@ -46,7 +55,7 @@ fn main() {
             {
                 Ok(l) => l,
                 Err(e) => {
-                    let _ = tx.send(Err(format!(
+                    let _ = tx.send(Boot::Failed(format!(
                         "端口 {}-{} 全被占用，无法启动本地服务：{e}",
                         PREFERRED_PORT,
                         PREFERRED_PORT + wisecortex_server::PORT_SCAN_LIMIT - 1,
@@ -57,24 +66,46 @@ fn main() {
             let port = match listener.local_addr() {
                 Ok(a) => a.port(),
                 Err(e) => {
-                    let _ = tx.send(Err(format!("取绑定端口失败：{e}")));
+                    let _ = tx.send(Boot::Failed(format!("取绑定端口失败：{e}")));
                     return;
                 }
             };
-            // 先告知端口（主线程靠它建窗），再进入服务循环。
-            let _ = tx.send(Ok(port));
-            if let Err(e) = wisecortex_server::serve_on(listener).await {
+            // 先告知端口（主线程靠它拼注入脚本）。
+            let _ = tx.send(Boot::Port(port));
+            let ready_tx = tx.clone();
+            let r = wisecortex_server::serve_on_ready(listener, move |_| {
+                let _ = ready_tx.send(Boot::Ready);
+            })
+            .await;
+            if let Err(e) = r {
                 wisecortex_core::buglog::record("desktop", &format!("内嵌后端退出：{e}"));
             }
         });
     });
 
-    // 等绑定结果。超时不致命（慢机器可能真的慢），先用首选端口先把窗口开起来。
-    let bind_result = rx.recv_timeout(std::time::Duration::from_secs(10));
-    let port = match &bind_result {
-        Ok(Ok(p)) => *p,
-        _ => PREFERRED_PORT,
-    };
+    // 先拿端口（bind 很快，给 10s 足够）。
+    let mut port = PREFERRED_PORT;
+    let mut boot_err: Option<String> = None;
+    match rx.recv_timeout(std::time::Duration::from_secs(10)) {
+        Ok(Boot::Port(p)) => port = p,
+        Ok(Boot::Failed(msg)) => boot_err = Some(msg),
+        Ok(Boot::Ready) => {} // 理论上不会先到，到了也无害。
+        Err(_) => boot_err = Some("本地服务启动超时（绑定阶段）".to_string()),
+    }
+
+    // 再等就绪：冷启动要播种技能 + 恢复会话，给到 30s。
+    // 超时不致命——窗口照开，前端自带退避重试，最终仍能把配置刷出来。
+    if boot_err.is_none() {
+        match rx.recv_timeout(std::time::Duration::from_secs(30)) {
+            Ok(Boot::Ready) => {}
+            Ok(Boot::Failed(msg)) => boot_err = Some(msg),
+            Ok(Boot::Port(p)) => port = p,
+            Err(_) => wisecortex_core::buglog::record(
+                "desktop",
+                "后端 30s 内未报就绪，先开窗口（前端会自行重试）",
+            ),
+        }
+    }
     ACTUAL_PORT.store(port, Ordering::Relaxed);
 
     // 把真实端口注入窗口：前端的 backend.ts 优先读 __WC_PORT__，读不到才回退 7070。
@@ -86,9 +117,9 @@ fn main() {
         .setup({
             let script = init_script.clone();
             move |app| {
-                // 绑定失败：必须说出来。旧实现只 eprintln，release 下 windows_subsystem="windows"
+                // 启动失败：必须说出来。旧实现只 eprintln，release 下 windows_subsystem="windows"
                 // 根本没有控制台，用户看到的只是「要密钥」和空白配置，完全指不到真因。
-                if let Ok(Err(msg)) = &bind_result {
+                if let Some(msg) = &boot_err {
                     wisecortex_core::buglog::record("desktop", msg);
                     app.dialog()
                         .message(format!(

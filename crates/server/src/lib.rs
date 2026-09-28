@@ -159,9 +159,26 @@ async fn prepare_state(addr: std::net::SocketAddr) -> std::io::Result<AppState> 
 /// 与 [`run`] 的区别：调用方自己完成 bind，因而能在**启动前**拿到真实端口——
 /// 桌面端需要这个来把实际端口注入前端（端口可能因冲突顺延，不再恒为 7070）。
 pub async fn serve_on(listener: tokio::net::TcpListener) -> std::io::Result<()> {
+    serve_on_ready(listener, |_| {}).await
+}
+
+/// 同 [`serve_on`]，但在**即将开始接受请求之前**回调一次 `on_ready(addr)`。
+///
+/// 为什么需要它：`prepare_state` 要播种内置技能、注册 MCP、恢复会话，冷启动时这段
+/// 可能耗时数秒。而 listener 早已 bind 成功，端口处于「已监听但服务未就绪」的状态——
+/// 此时前端的请求会被 TCP 接受却得不到响应，比「连接被拒」更难判断。
+/// 桌面端据此在后端真正可服务之后才加载页面，从根上消掉这个竞态。
+pub async fn serve_on_ready<F>(
+    listener: tokio::net::TcpListener,
+    on_ready: F,
+) -> std::io::Result<()>
+where
+    F: FnOnce(std::net::SocketAddr),
+{
     let addr = listener.local_addr()?;
     let state = prepare_state(addr).await?;
     wisecortex_core::sprintln!("listening on http://{addr} (ws: /ws)");
+    on_ready(addr);
     axum::serve(listener, app(state)).await
 }
 
