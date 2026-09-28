@@ -425,6 +425,17 @@ Config and sessions live in the service user's home (`~/.config/wisecortex`,
 `~/.local/share/wisecortex`), so run `wisecortex config set` as that same user — otherwise the
 service will not see your model.
 
+> **Running as root?** It works, but WiseCortex executes shell commands on the model's behalf,
+> so root means the agent has full control of the box. On anything but a throwaway machine,
+> give it its own user:
+>
+> ```bash
+> sudo useradd -m -s /bin/bash wisecortex
+> ```
+>
+> Then build, `config set`, and generate the unit file **as that user** — the config path moves
+> with it (`/home/wisecortex/.config/wisecortex`).
+
 **8. Exposing it — nginx**
 
 The frontend is plain static files and talks to the backend **same-origin**: REST on `/api/*`,

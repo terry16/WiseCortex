@@ -399,7 +399,16 @@ systemctl status wisecortex          # 应显示 active (running)
 配置和会话存在服务运行用户的家目录下（`~/.config/wisecortex`、
 `~/.local/share/wisecortex`），所以 `wisecortex config set` 要用**同一个用户**执行，
 否则服务看不到你配的模型。
-```
+
+> **用 root 跑？** 能跑，但 WiseCortex 会代模型执行 shell 命令，root 就意味着 agent
+> 拥有这台机器的完整控制权。除了用完就扔的机器，建议给它单独建一个用户：
+>
+> ```bash
+> sudo useradd -m -s /bin/bash wisecortex
+> ```
+>
+> 之后编译、`config set`、生成 service 文件都用这个用户——配置路径会跟着变成
+> `/home/wisecortex/.config/wisecortex`。
 
 **8. 对外访问 — nginx**
 
