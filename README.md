@@ -147,13 +147,107 @@ can build its own toolchain step by step.
 
 ## Install
 
-### Prerequisites (all platforms)
+### Which path should I take?
 
-- **Rust** via [rustup](https://rustup.rs) — the exact version is pinned in `rust-toolchain.toml`; rustup switches to it automatically
-- **Node.js ≥ 20** (22 LTS recommended) and npm
-- **Git**
+| You want | Go to |
+| --- | --- |
+| Just use it on Windows / macOS | [Download a prebuilt installer](#option-a--prebuilt-installer-no-toolchain-needed) — no Rust, no Node, no compiling |
+| Run it on a Linux server (WebUI, always on) | [Linux / server](#linux--server--webui) — full copy-paste setup from a bare Ubuntu box |
+| Build from source / contribute | [Set up the toolchain](#option-b--build-from-source) first |
 
-Check with `cargo --version`, `node --version`, `git --version`.
+### Option A — prebuilt installer (no toolchain needed)
+
+Grab the latest file from the [Releases page](https://github.com/terry16/wisecortex/releases):
+
+| Your machine | File |
+| --- | --- |
+| Windows 10/11 | `WiseCortex_<ver>_x64-setup.exe` (recommended) or `..._x64_en-US.msi` |
+| Mac, Apple Silicon (M1–M4) | `WiseCortex_<ver>_aarch64.dmg` |
+| Mac, Intel | `WiseCortex_<ver>_x64.dmg` |
+
+Install it, launch it, then open **Settings → Model** and paste an API key. That is the whole
+setup — the desktop app has the backend built in, so there is no server to run and nothing to
+configure.
+
+> macOS, unsigned build: the first launch needs **right-click → Open**, or approve it under
+> System Settings → Privacy & Security.
+
+Prefer no installer? The same page has portable archives with just the CLI and server binaries:
+`wisecortex-windows-x64.zip`, `wisecortex-macos-arm64.tar.gz`, `wisecortex-macos-x64.tar.gz`.
+
+Everything below is only needed if you want to build from source or deploy on a server.
+
+### Option B — build from source
+
+You need three things: **Rust**, **Node.js ≥ 20**, **Git**. Pick your OS and paste.
+
+<details open>
+<summary><b>Ubuntu / Debian</b></summary>
+
+```bash
+# 1. build essentials (a C linker is all Rust needs here)
+sudo apt update
+sudo apt install -y build-essential pkg-config curl git
+
+# 2. Rust (installs into ~/.cargo, no root needed)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
+
+# 3. Node.js 22 LTS — Ubuntu's own "nodejs" package is far too old, use NodeSource
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+```
+
+</details>
+
+<details>
+<summary><b>macOS</b></summary>
+
+```bash
+# 1. Apple command line tools (gives you git + a C linker)
+xcode-select --install
+
+# 2. Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
+
+# 3. Node.js — via Homebrew (https://brew.sh if you don't have it)
+brew install node@22
+```
+
+</details>
+
+<details>
+<summary><b>Windows</b></summary>
+
+Run in PowerShell:
+
+```powershell
+# Rust + Node + Git in one go
+winget install Rustlang.Rustup
+winget install OpenJS.NodeJS.LTS
+winget install Git.Git
+
+# Needed to link Rust binaries on Windows: the C++ build tools
+winget install Microsoft.VisualStudio.2022.BuildTools --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+```
+
+Then **close and reopen the terminal** so the new `PATH` takes effect.
+
+If `winget` is unavailable, install manually: [rustup](https://rustup.rs) ·
+[Node.js LTS](https://nodejs.org) · [Git](https://git-scm.com) ·
+[VS C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+(pick the "Desktop development with C++" workload).
+
+</details>
+
+Verify — all three must print a version:
+
+```bash
+cargo --version      # rustup pulls the version pinned in rust-toolchain.toml automatically
+node --version       # must be >= 20
+git --version
+```
 
 TLS goes through rustls throughout, so there is **no** OpenSSL / `libssl-dev` dependency.
 Building needs only a C linker.
@@ -224,8 +318,12 @@ System Settings → Privacy & Security.
 
 ### Linux / server — WebUI
 
-No desktop package on Linux; run the backend plus the static frontend. Steps below are for
-**Ubuntu 22.04 / 24.04** and can be pasted as-is.
+There is no desktop package on Linux: you run the backend plus the static frontend, and reach it
+from a browser. Steps below assume a **fresh Ubuntu 22.04 / 24.04** box and can be pasted as-is.
+
+> Nothing here needs root except the `apt` lines and the systemd/nginx parts. WiseCortex itself
+> runs as your normal user and keeps its data under `~/.config/wisecortex` and
+> `~/.local/share/wisecortex`.
 
 **1. System dependencies**
 
@@ -244,6 +342,8 @@ cargo --version
 
 **3. Node.js ≥ 20**
 
+Ubuntu's own `nodejs` package is too old; use NodeSource:
+
 ```bash
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt install -y nodejs
@@ -260,6 +360,9 @@ cargo build --release                          # -> target/release/{wisecortex-s
 cd web && npm install && npm run build && cd .. # -> web/dist
 ```
 
+The Rust build is the slow part — a few minutes, and it wants **~2 GB of free RAM**. On a small
+VPS, add swap first if the compiler gets killed (see Troubleshooting below).
+
 **5. Configure a model** (otherwise there is nothing to talk to)
 
 ```bash
@@ -272,6 +375,9 @@ cd web && npm install && npm run build && cd .. # -> web/dist
 ./target/release/wisecortex-server        # 127.0.0.1:7070
 cd web && npx vite preview --port 5173  # or any static server for web/dist
 ```
+
+Open `http://<server-ip>:5173`. If that is a remote machine and the page does not load, it is
+almost always the firewall or a missing `--host` — see Troubleshooting.
 
 **7. Run it as a service**
 
@@ -348,6 +454,44 @@ WC_ACCESS_KEY=your-key WC_BIND=0.0.0.0:7070 ./target/release/wisecortex-server
 ```
 
 Binding to a non-loopback address without an access key is refused, by design.
+
+### Troubleshooting the Linux setup
+
+**`cargo build` dies with "signal: 9, SIGKILL" or the box freezes**
+Out of memory — the Rust compiler needs roughly 2 GB. On a 1 GB VPS, add swap:
+
+```bash
+sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile
+sudo mkswap /swapfile && sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab   # keep it after reboot
+```
+
+**Page doesn't load from another machine**
+`vite preview` binds to localhost only. Use `npx vite preview --port 5173 --host`, and open the
+port: `sudo ufw allow 5173`. For anything permanent, use the nginx setup above instead.
+
+**`cargo: command not found` after installing Rust**
+The installer only edits your shell profile; the current shell doesn't know yet. Run
+`source "$HOME/.cargo/env"` or open a new terminal.
+
+**`node: not found` / npm errors about an old Node**
+The distro package is too old. Install via NodeSource as shown in step 3 and check
+`node --version` is ≥ 20.
+
+**Backend starts but the browser shows no models**
+The frontend and backend are separate: make sure `wisecortex-server` is actually running
+(`curl 127.0.0.1:7070/api/auth/status` should answer), and that you set a model with
+`wisecortex config set`.
+
+**Port 7070 already in use**
+Something else holds it, often a previous instance that did not exit. Find and stop it:
+
+```bash
+ss -lptn 'sport = :7070'
+```
+
+Or move the backend: `WC_BIND=127.0.0.1:7071 ./target/release/wisecortex-server` (update the
+nginx `proxy_pass` to match).
 
 ## Configure a model
 

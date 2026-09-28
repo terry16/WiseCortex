@@ -129,13 +129,105 @@ HTTP / WebSocket 接口。
 
 ## 安装
 
-### 通用前置依赖
+### 我该走哪条路？
 
-- **Rust**，经 [rustup](https://rustup.rs) 安装（具体版本锁在 `rust-toolchain.toml`，rustup 自动切换，无需手动指定）
-- **Node.js ≥ 20**（建议 22 LTS）与 npm
-- **Git**
+| 你的目标 | 去这里 |
+| --- | --- |
+| 在 Windows / macOS 上直接用 | [下载现成安装包](#方案-a--现成安装包无需任何工具链) — 不用装 Rust、Node，不用编译 |
+| 部署到 Linux 服务器（WebUI，长期在线） | [Linux / 服务器](#linux--服务器--webui) — 从裸机开始的完整可粘贴流程 |
+| 从源码编译 / 参与开发 | 先[配置工具链](#方案-b--从源码编译) |
 
-以 `cargo --version` / `node --version` / `git --version` 验证。
+### 方案 A — 现成安装包（无需任何工具链）
+
+到 [Releases 页面](https://github.com/terry16/wisecortex/releases)下载最新文件：
+
+| 你的机器 | 下载 |
+| --- | --- |
+| Windows 10/11 | `WiseCortex_<版本>_x64-setup.exe`（推荐）或 `..._x64_en-US.msi` |
+| Mac，Apple 芯片（M1–M4） | `WiseCortex_<版本>_aarch64.dmg` |
+| Mac，Intel 芯片 | `WiseCortex_<版本>_x64.dmg` |
+
+装完启动，打开**设置 → 模型**填入 API Key，就可以用了。桌面端内嵌后端，无需单独跑服务，
+也没有任何需要配置的东西。
+
+> macOS 未签名版本：首次启动需**右键 → 打开**，或在「系统设置 → 隐私与安全性」中放行。
+
+不想用安装包？同一页面提供免安装压缩包（仅含 CLI 与服务端二进制）：
+`wisecortex-windows-x64.zip`、`wisecortex-macos-arm64.tar.gz`、`wisecortex-macos-x64.tar.gz`。
+
+以下内容只在你要从源码编译、或要部署到服务器时才需要。
+
+### 方案 B — 从源码编译
+
+需要三样东西：**Rust**、**Node.js ≥ 20**、**Git**。按系统复制粘贴即可。
+
+<details open>
+<summary><b>Ubuntu / Debian</b></summary>
+
+```bash
+# 1. 编译基础工具（Rust 在这里只需要一个 C 链接器）
+sudo apt update
+sudo apt install -y build-essential pkg-config curl git
+
+# 2. Rust（装到 ~/.cargo，不需要 root）
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
+
+# 3. Node.js 22 LTS —— Ubuntu 自带的 nodejs 包版本太老，用 NodeSource
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+```
+
+</details>
+
+<details>
+<summary><b>macOS</b></summary>
+
+```bash
+# 1. Apple 命令行工具（自带 git 和 C 链接器）
+xcode-select --install
+
+# 2. Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
+
+# 3. Node.js —— 用 Homebrew（没装的话见 https://brew.sh）
+brew install node@22
+```
+
+</details>
+
+<details>
+<summary><b>Windows</b></summary>
+
+在 PowerShell 中执行：
+
+```powershell
+# Rust + Node + Git 一次装好
+winget install Rustlang.Rustup
+winget install OpenJS.NodeJS.LTS
+winget install Git.Git
+
+# Windows 上链接 Rust 程序必需：C++ 生成工具
+winget install Microsoft.VisualStudio.2022.BuildTools --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+```
+
+装完**关闭并重开终端**，让新的 `PATH` 生效。
+
+如果没有 `winget`，手动安装：[rustup](https://rustup.rs) ·
+[Node.js LTS](https://nodejs.org) · [Git](https://git-scm.com) ·
+[VS C++ 生成工具](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+（勾选「使用 C++ 的桌面开发」工作负载）。
+
+</details>
+
+验证 —— 三条命令都应打印出版本号：
+
+```bash
+cargo --version      # rustup 会自动拉取 rust-toolchain.toml 里锁定的版本
+node --version       # 必须 >= 20
+git --version
+```
 
 本项目 TLS 全栈基于 rustls，**不依赖** OpenSSL / `libssl-dev`，编译仅需一个 C 链接器。
 
@@ -203,8 +295,11 @@ scripts\build-windows.bat fast      目标可选 all | fast | backend | web | de
 
 ### Linux / 服务器 — WebUI
 
-Linux 不提供桌面包，部署形态为「后端 + 静态前端」。以下以 **Ubuntu 22.04 / 24.04** 为例，
-自干净系统至生产部署，命令可直接复制。
+Linux 不提供桌面包，部署形态为「后端 + 静态前端」，通过浏览器访问。以下以**干净的
+Ubuntu 22.04 / 24.04** 为例，命令可直接复制。
+
+> 除了 `apt` 以及 systemd / nginx 部分，其余步骤**都不需要 root**。WiseCortex 以普通
+> 用户运行，数据存在 `~/.config/wisecortex` 和 `~/.local/share/wisecortex`。
 
 **1. 系统依赖**
 
@@ -223,6 +318,8 @@ cargo --version
 
 **3. 安装 Node.js ≥ 20**
 
+Ubuntu 自带的 `nodejs` 包版本太老，用 NodeSource：
+
 ```bash
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt install -y nodejs
@@ -239,6 +336,9 @@ cargo build --release                          # 产出 target/release/{wisecort
 cd web && npm install && npm run build && cd .. # 产出 web/dist
 ```
 
+Rust 编译是最慢的一步，需几分钟，并且要求**空闲内存 ~2 GB**。小配置 VPS 上如果编译器
+被杀，先加 swap（见下方常见问题）。
+
 **5. 配置模型**（未配置时无法发起对话）
 
 ```bash
@@ -251,6 +351,9 @@ cd web && npm install && npm run build && cd .. # 产出 web/dist
 ./target/release/wisecortex-server        # 127.0.0.1:7070
 cd web && npx vite preview --port 5173  # web/dist 为纯静态，任意静态服务器均可
 ```
+
+浏览器打开 `http://<服务器IP>:5173`。如果是远程机器打不开，基本都是防火墙或少了 `--host`，
+见下方常见问题。
 
 **7. 注册为常驻服务**
 
@@ -327,6 +430,42 @@ WC_ACCESS_KEY=你的密钥 WC_BIND=0.0.0.0:7070 ./target/release/wisecortex-serv
 ```
 
 绑定非回环地址却未设密钥会被拒绝启动，此为有意设计。
+
+### Linux 部署常见问题
+
+**`cargo build` 报 "signal: 9, SIGKILL" 或整机卡死**
+内存不够，Rust 编译器大约需要 2 GB。1 GB 的 VPS 请先加 swap：
+
+```bash
+sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile
+sudo mkswap /swapfile && sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab   # 重启后仍生效
+```
+
+**从别的机器打不开页面**
+`vite preview` 默认只监听 localhost。改用 `npx vite preview --port 5173 --host`，并放行端口：
+`sudo ufw allow 5173`。长期部署请直接用上面的 nginx 方案。
+
+**装完 Rust 仍提示 `cargo: command not found`**
+安装脚本只改了 shell 配置文件，当前 shell 还不知道。执行 `source "$HOME/.cargo/env"`
+或新开一个终端。
+
+**`node: not found` 或 npm 报 Node 版本过低**
+发行版自带的包太旧，按第 3 步用 NodeSource 安装，确认 `node --version` ≥ 20。
+
+**后端起来了但界面里没有模型**
+前后端是分开的：先确认 `wisecortex-server` 真的在跑
+（`curl 127.0.0.1:7070/api/auth/status` 应有响应），再确认已用 `wisecortex config set` 配好模型。
+
+**7070 端口已被占用**
+被别的程序占了，常见于上次没退干净的实例。查出来并停掉：
+
+```bash
+ss -lptn 'sport = :7070'
+```
+
+或者换端口：`WC_BIND=127.0.0.1:7071 ./target/release/wisecortex-server`
+（nginx 的 `proxy_pass` 要同步改）。
 
 ## 配置模型
 
