@@ -357,31 +357,48 @@ cd web && npx vite preview --port 5173  # web/dist 为纯静态，任意静态�
 
 **7. 注册为常驻服务**
 
-新建 `/etc/systemd/system/wisecortex.service`，按实际情况调整 `User` 与路径：
+**不要**手动拄下面的配置然后猜一个用户名——`User=` 写错是这里最常见的失败
+（报 `status=217/USER`）。让 shell 自动填入你的真实用户名和路径：
 
-```ini
+```bash
+sudo tee /etc/systemd/system/wisecortex.service >/dev/null <<EOF
 [Unit]
 Description=WiseCortex server
 After=network.target
 
 [Service]
 Type=simple
-User=ubuntu
-WorkingDirectory=/home/ubuntu/wisecortex
-ExecStart=/home/ubuntu/wisecortex/target/release/wisecortex-server
+User=$(id -un)
+WorkingDirectory=$PWD
+ExecStart=$PWD/target/release/wisecortex-server
 # 对公网暴露时必填；仅本机或经 nginx 反代可省略
 # Environment=WC_ACCESS_KEY=改成你的密钥
 Restart=on-failure
 RestartSec=3
+# 配置出错时别无限重启：60 秒内败 5 次就放弃
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target
+EOF
 ```
 
+请在仓库根目录执行（`$PWD` 必须是含 `target/release/` 的那个目录）。先确认填对了，再启动：
+
 ```bash
+grep -E 'User|ExecStart' /etc/systemd/system/wisecortex.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now wisecortex
-journalctl -u wisecortex -f
+systemctl status wisecortex          # 应显示 active (running)
+```
+
+看日志：`journalctl -u wisecortex -f`。这里的 `-f` 是「持续跟随」，会一直流式输出到你按
+**Ctrl+C**为止，它不是卡住了。
+
+配置和会话存在服务运行用户的家目录下（`~/.config/wisecortex`、
+`~/.local/share/wisecortex`），所以 `wisecortex config set` 要用**同一个用户**执行，
+否则服务看不到你配的模型。
 ```
 
 **8. 对外访问 — nginx**
@@ -432,6 +449,31 @@ WC_ACCESS_KEY=你的密钥 WC_BIND=0.0.0.0:7070 ./target/release/wisecortex-serv
 绑定非回环地址却未设密钥会被拒绝启动，此为有意设计。
 
 ### Linux 部署常见问题
+
+**`status=217/USER` —— "Failed to determine user credentials"**
+配置文件里的 `User=` 写了一个本机不存在的账号（最典型的就是照抄了 `User=ubuntu`，
+而你的登录用户并不叫这个）。先掐断重启循环，再改：
+
+```bash
+sudo systemctl stop wisecortex
+sudo systemctl reset-failed wisecortex     # 清掉失败计数
+id -un                                     # <- 你真正的用户名
+```
+
+把这个名字填进 `User=`（或者直接用上面那条 `sudo tee` 重新生成，它会自动填对），
+然后 `sudo systemctl daemon-reload && sudo systemctl start wisecortex`。
+
+**服务反复重启，我停不下来，Ctrl+C 也没用**
+`Restart=on-failure` 会一直把它拉起来。**只有 `systemctl stop` 能停**——Ctrl+C 和关终端
+都无效，因为这个进程的父进程是 systemd（PID 1），跟你的终端会话无关：
+
+```bash
+sudo systemctl stop wisecortex
+sudo systemctl disable wisecortex     # 顺便取消开机自启，否则重启后又回来
+```
+
+另外，`journalctl -u wisecortex -f` 一直滚动**不代表服务在出错**：`-f` 是实时跟随日志，
+按 **Ctrl+C** 退出查看器即可（它只关掉日志窗口，不影响服务）。
 
 **`cargo build` 报 "signal: 9, SIGKILL" 或整机卡死**
 内存不够，Rust 编译器大约需要 2 GB。1 GB 的 VPS 请先加 swap：

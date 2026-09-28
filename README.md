@@ -381,32 +381,49 @@ almost always the firewall or a missing `--host` — see Troubleshooting.
 
 **7. Run it as a service**
 
-Create `/etc/systemd/system/wisecortex.service` (adjust `User`, paths):
+Do **not** hand-copy the unit file below with a guessed username — a wrong `User=` is the most
+common failure here (`status=217/USER`). Let the shell fill in your real user and path:
 
-```ini
+```bash
+sudo tee /etc/systemd/system/wisecortex.service >/dev/null <<EOF
 [Unit]
 Description=WiseCortex server
 After=network.target
 
 [Service]
 Type=simple
-User=ubuntu
-WorkingDirectory=/home/ubuntu/wisecortex
-ExecStart=/home/ubuntu/wisecortex/target/release/wisecortex-server
+User=$(id -un)
+WorkingDirectory=$PWD
+ExecStart=$PWD/target/release/wisecortex-server
 # Required when exposed to the internet; optional for loopback / behind nginx
 # Environment=WC_ACCESS_KEY=change-me
 Restart=on-failure
 RestartSec=3
+# Give up after 5 failures in 60s instead of restarting forever on a config error
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target
+EOF
 ```
 
+Run that from the repo root (`$PWD` must be the directory holding `target/release/`). Check it
+picked up the right values, then start it:
+
 ```bash
+grep -E 'User|ExecStart' /etc/systemd/system/wisecortex.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now wisecortex
-journalctl -u wisecortex -f
+systemctl status wisecortex          # should say "active (running)"
 ```
+
+To watch the log: `journalctl -u wisecortex -f`. The `-f` means *follow* — it keeps streaming
+until you press **Ctrl+C**. It is not stuck.
+
+Config and sessions live in the service user's home (`~/.config/wisecortex`,
+`~/.local/share/wisecortex`), so run `wisecortex config set` as that same user — otherwise the
+service will not see your model.
 
 **8. Exposing it — nginx**
 
@@ -456,6 +473,32 @@ WC_ACCESS_KEY=your-key WC_BIND=0.0.0.0:7070 ./target/release/wisecortex-server
 Binding to a non-loopback address without an access key is refused, by design.
 
 ### Troubleshooting the Linux setup
+
+**`status=217/USER` — "Failed to determine user credentials"**
+The `User=` in your unit file names an account that does not exist on this machine (the classic
+case is a copy-pasted `User=ubuntu` on a box whose login user is something else). Stop the
+restart loop first, then fix it:
+
+```bash
+sudo systemctl stop wisecortex
+sudo systemctl reset-failed wisecortex     # clears the restart counter
+id -un                                     # <- your actual username
+```
+
+Put that name in `User=` (or regenerate the unit with the `sudo tee` command above, which fills
+it in for you), then `sudo systemctl daemon-reload && sudo systemctl start wisecortex`.
+
+**The service restarts over and over and I can't stop it**
+`Restart=on-failure` keeps relaunching it. `systemctl stop` is what breaks the loop —
+Ctrl+C does nothing, because the process is systemd's child, not your shell's:
+
+```bash
+sudo systemctl stop wisecortex
+sudo systemctl disable wisecortex     # also stop it from coming back after a reboot
+```
+
+Note that `journalctl -u wisecortex -f` scrolling forever is *not* the service failing: `-f`
+follows the log live. Press **Ctrl+C** to exit the viewer.
 
 **`cargo build` dies with "signal: 9, SIGKILL" or the box freezes**
 Out of memory — the Rust compiler needs roughly 2 GB. On a 1 GB VPS, add swap:
