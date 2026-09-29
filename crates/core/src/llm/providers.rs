@@ -36,7 +36,10 @@ pub enum WireFormat {
 /// 各家把同一件事写成了不同参数，统一在出站时按本枚举翻译（见 [`super::openai::build_request_body`]）：
 ///   - `reasoning_effort`：发 `reasoning_effort: <level>`（OpenAI / o 系列 / Gemini 兼容端点）。
 ///     档位上限**按模型**定而非按 provider，见 [`clamp_effort`]。
-///   - `enable_thinking`：发 `enable_thinking: true`（Qwen / 混元 等「混合思考」模型，布尔开关）。
+///   - `enable_thinking`：发 `enable_thinking: true`（混合思考模型的布尔开关；内置预设现已无一走此路，
+///     仍可经 providers.json 覆盖启用）。
+///   - `qwen_thinking`：千问按模型代次分流——3.8 代起（始终思考）发 `reasoning_effort`（允许集见
+///     [`qwen_effort_level`]，关闭发 `none`），3.7 及更早仍发 `enable_thinking`。见 [`is_qwen_effort_model`]。
 ///   - `thinking_enabled_effort`：发 `thinking: {"type":"enabled"}` + `reasoning_effort: <level>`
 ///     （DeepSeek V4：思考开关用对象、强度仍用 reasoning_effort，两者一起发）。
 ///   - `none`：不发任何思考参数（思考由模型内置或不支持）。
@@ -50,6 +53,10 @@ pub enum ThinkingMode {
     ReasoningEffort,
     /// 发 `enable_thinking: true`。
     EnableThinking,
+    /// 千问专用：按**模型代次**分流（见 [`is_qwen_effort_model`]）。
+    ///   - 3.8 代起（始终思考）：发 `reasoning_effort`（允许集见 [`qwen_effort_level`]），关闭发 `none`。
+    ///   - 3.7 及更早（混合思考）：发 `enable_thinking: true`（关闭则不发，沿用上游默认）。
+    QwenThinking,
     /// 发 `thinking: {"type": "enabled"}` + `reasoning_effort: <level>`（DeepSeek V4 等：思考开关用
     /// 对象、强度仍用 reasoning_effort，两者一起发）。
     ThinkingEnabledEffort,
@@ -156,6 +163,65 @@ pub fn thinking_enabled_effort_level(model: &str, effort: &str) -> &'static str 
     }
 }
 
+/// 千问 **3.8 代起**是否走「始终思考 + `reasoning_effort` 调力度」。
+///
+/// 3.8 系（qwen3.8-max / -flash / -2.4t-a95b / -27b）默认开启思考，**不认布尔 `enable_thinking`**
+/// （那是 3.7/3.6/3.5/3 等混合思考模型的开关，对 3.8 系发会被上游打回），力度只能靠
+/// `reasoning_effort` 调（允许集见 [`qwen_effort_level`]）。3.7 及更早仍用布尔 `enable_thinking`。
+///
+/// 只认 `qwen<数字>` 形态：先剥 BYOK 的 `前缀/`，再要求以 `qwen` 开头（避免 `myqwen3.9` 误命中）。
+/// 没有版本号的 `qwen-plus`/`qwen-turbo`、以及 `qwen-vl-max` 这类按老代（enable_thinking）处理。
+pub fn is_qwen_effort_model(model: &str) -> bool {
+    let id = model.to_ascii_lowercase();
+    let tail = match id.rsplit_once('/') {
+        Some((_, last)) => last,
+        None => id.as_str(),
+    };
+    let Some(rest) = tail.strip_prefix("qwen") else {
+        return false;
+    };
+    // 主版本：`3.8-max` → 3；`-plus`（无版本号）→ 解析失败，按老代。
+    let major_digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+    let Ok(major) = major_digits.parse::<u32>() else {
+        return false;
+    };
+    if major != 3 {
+        return major > 3;
+    }
+    // 次版本：`3.8-max` → 8；`3-max` 无次版本按 0（老代）。
+    let after = rest[major_digits.len()..].trim_start_matches('.');
+    let minor: String = after.chars().take_while(char::is_ascii_digit).collect();
+    minor.parse::<u32>().unwrap_or(0) >= 8
+}
+
+/// [`ThinkingMode::QwenThinking`] 下 qwen3.8+ 的 `reasoning_effort` 映射。
+///
+/// **上游实测**（token-plan 兼容端，qwen3.8-max）：传非法值时 400 报出权威允许集
+/// `'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'`，且这 7 个值逐个直连均 200；
+/// 思考量随档位递增（none=0 字 → low=36 → medium=105 → max=189）。
+/// 所以合法档一律**透传**，不做降级：早先按文档字面「只认 low/medium/xhigh」把 high/max
+/// 折成 xhigh，实测证明多余（上游自己会把 high/max 映射到 xhigh），白丢用户选的档位。
+///
+/// 两处特殊处理：
+///   - 空档（UI「关闭」）**显式发 `none`**：3.8 系默认开着 xhigh 思考，不显式发就关不掉
+///     （实测 none 下思考 0 字）。与本仓库对始终思考 provider 的既有处置一致
+///     （火山显式 minimal、Kimi 显式 disabled）。
+///   - 集外的值钳到 `xhigh`：免得拼错/别家档位名被上游 400 打回。
+///
+/// 不发 `thinking_budget`：上游明确规定二者**互斥**，同时给会 400。
+pub fn qwen_effort_level(effort: &str) -> &'static str {
+    match effort {
+        "" | "none" => "none",
+        "minimal" => "minimal",
+        "low" => "low",
+        "medium" => "medium",
+        "high" => "high",
+        "xhigh" => "xhigh",
+        "max" => "max",
+        _ => "xhigh",
+    }
+}
+
 /// 全部内置预设。BYOK 自定义端点不在此列。
 pub const PRESETS: &[Provider] = &[
     Provider {
@@ -212,12 +278,19 @@ pub const PRESETS: &[Provider] = &[
         name: "Qwen (Alibaba)",
         base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1",
         format: WireFormat::OpenAi,
-        // 千问混合思考模型用布尔开关 enable_thinking（需流式，我们本就全程流式）。
-        thinking: ThinkingMode::EnableThinking,
+        // 千问：3.8 代起是「始终思考」模型，力度靠 reasoning_effort 调（允许集 none/minimal/low/
+        // medium/high/xhigh/max，实测均被上游接受）；3.7 及更早是混合思考，用布尔 enable_thinking。
+        // 同一预设内按模型分流，见 ThinkingMode::QwenThinking。
+        thinking: ThinkingMode::QwenThinking,
         default_model: "qwen3.7-max",
-        models: &["qwen3.7-max", "qwen3.7-plus", "qwen3.6-flash"],
-        // qwen3.7-plus 与 qwen3.6-flash 为多模态，支持图片输入；qwen3.7-max 为纯文本。
-        vision_models: &["qwen3.7-plus", "qwen3.6-flash"],
+        models: &[
+            "qwen3.8-max",
+            "qwen3.7-max",
+            "qwen3.7-plus",
+            "qwen3.6-flash",
+        ],
+        // qwen3.8-max 支持图片输入；qwen3.7-plus 与 qwen3.6-flash 为多模态；qwen3.7-max 纯文本。
+        vision_models: &["qwen3.8-max", "qwen3.7-plus", "qwen3.6-flash"],
     },
     Provider {
         // 腾讯混元 TokenHub 的 OpenAI 兼容端点（免签名，直接 Bearer）。
@@ -578,8 +651,8 @@ mod tests {
 
     #[test]
     fn thinking_modes_match_provider_quirks() {
-        // 千问走布尔开关 enable_thinking。
-        assert_eq!(get("qwen").unwrap().thinking, ThinkingMode::EnableThinking);
+        // 千问按模型代次分流：3.8+ 走 reasoning_effort，3.7 及更早走布尔 enable_thinking。
+        assert_eq!(get("qwen").unwrap().thinking, ThinkingMode::QwenThinking);
         // 混元 hy3-preview 走标准 reasoning_effort，端点为 TokenHub。
         assert_eq!(
             get("hunyuan").unwrap().thinking,
@@ -621,6 +694,71 @@ mod tests {
         assert_eq!(thinking_enabled_effort_level("glm-5.3", "medium"), "high");
         assert_eq!(thinking_enabled_effort_level("glm-5.3", "xhigh"), "max");
         assert_eq!(thinking_enabled_effort_level("glm-5.3", "max"), "max");
+    }
+
+    #[test]
+    fn qwen_3_8_and_later_use_reasoning_effort() {
+        // 3.8 系全认（含快照与变体）。
+        for m in [
+            "qwen3.8-max",
+            "qwen3.8-max-0902",
+            "qwen3.8-flash",
+            "qwen3.8-2.4t-a95b",
+            "qwen3.8-27b",
+            "qwen3.9-max",
+            "qwen4-max",
+            "QWEN3.8-MAX",
+        ] {
+            assert!(is_qwen_effort_model(m), "{m} 应走 reasoning_effort");
+        }
+        // BYOK 前缀不影响判定（取 / 后的尾段）。
+        assert!(is_qwen_effort_model("openrouter/qwen3.8-max"));
+        // 3.7 及更早、无版本号、非 qwen 开头的一律走老路（enable_thinking）。
+        for m in [
+            "qwen3.7-max",
+            "qwen3.7-plus",
+            "qwen3.6-flash",
+            "qwen3.5",
+            "qwen3-max",
+            "qwen-max",
+            "qwen-plus",
+            "qwen-vl-max",
+            "myqwen3.9",
+            "glm-5.3",
+            "",
+        ] {
+            assert!(!is_qwen_effort_model(m), "{m} 不应走 reasoning_effort");
+        }
+    }
+
+    #[test]
+    fn qwen_effort_level_passes_through_upstream_allowed_set() {
+        // 上游 400 报出的权威允许集：none/minimal/low/medium/high/xhigh/max（7 个，实测逐个 200）。
+        // 一律透传不降级：把 high/max 折成 xhigh 是早先照文档字面写的多余降级，白丢用户档位。
+        for eff in ["none", "minimal", "low", "medium", "high", "xhigh", "max"] {
+            assert_eq!(qwen_effort_level(eff), eff, "{eff} 应原样透传");
+        }
+        // 空档（UI「关闭」）显式发 none——3.8 系默认开着思考，不发就关不掉。
+        assert_eq!(qwen_effort_level(""), "none");
+        // 集外的值钳到 xhigh，免得拼错被上游 400 打回。
+        assert_eq!(qwen_effort_level("bogus"), "xhigh");
+        assert_eq!(
+            qwen_effort_level("MAX"),
+            "xhigh",
+            "大小写敏感的透传，非集内即钳"
+        );
+    }
+
+    #[test]
+    fn qwen_preset_lists_3_8_max_with_vision() {
+        let p = get("qwen").unwrap();
+        assert!(p.models.contains(&"qwen3.8-max"));
+        assert!(p.vision_models.contains(&"qwen3.8-max"));
+        // 3.7 及更早的模型保留，不能因新增而丢。
+        for m in ["qwen3.7-max", "qwen3.7-plus", "qwen3.6-flash"] {
+            assert!(p.models.contains(&m), "{m} 应仍在模型表");
+        }
+        assert!(p.models.contains(&p.default_model));
     }
 
     #[test]

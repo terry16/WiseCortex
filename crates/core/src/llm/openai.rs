@@ -46,16 +46,52 @@ pub fn build_request_body(req: &LlmRequest, thinking: ThinkingMode) -> Value {
     // 深度思考：同一个「开启」意图，按 provider 翻成不同参数。空 effort=未开启（多数模式不发参数）；
     // 但有的模式（如火山的 minimal=不思考）即便关闭也要显式发一个值，故这里统一拿 &str（"" 表关闭）。
     let effort = req.reasoning_effort.as_deref().unwrap_or("");
+    // 千问 3.8 代起是「始终思考」模型，不认布尔 enable_thinking，力度只能走 reasoning_effort
+    // （允许集与映射见 providers::qwen_effort_level）。只改这三种模式：
+    //   - QwenThinking：内置 qwen 预设。
+    //   - ReasoningEffort：BYOK 自填端点（openai-compatible）走这条。不特判的话：clamp_effort 的
+    //     天花板表里没有 qwen，xhigh/max 会被砍到 high；更要紧的是「关闭」发不出 none，
+    //     而 3.8 系默认开着思考——用户的「关闭」就成了假的。
+    //   - EnableThinking：千问旧路，且是 providers.json 里可显式覆盖的值（见 override 测试），
+    //     对 3.8 系发 enable_thinking 会被上游打回，故同样改走 effort。
+    // 不碰 ThinkingEnabledEffort / ReasoningEffortMinimal / ThinkingObjectToggle：那三家
+    // （DeepSeek·GLM / 火山 / Kimi）的参数形状是厂商专属的，把 qwen 模型指到那些预设属配置错误，
+    // 宁可让上游报错也不要静默改写人家的协议；ThinkingMode::None 同理，那是明确声明不发任何参数。
+    let qwen_effort = match thinking {
+        ThinkingMode::QwenThinking
+        | ThinkingMode::ReasoningEffort
+        | ThinkingMode::EnableThinking
+            if super::providers::is_qwen_effort_model(&req.model) =>
+        {
+            Some(super::providers::qwen_effort_level(effort))
+        }
+        _ => None,
+    };
     match thinking {
         ThinkingMode::ReasoningEffort => {
             // 档位天花板按**模型**定（GPT-5.6 到 max、5.2+ 到 xhigh、其余到 high），
-            // 而非按 provider 一刀切——见 providers::clamp_effort。
-            if let Some(eff) = super::providers::clamp_effort(&req.model, effort) {
+            // 而非按 provider 一刀切——见 providers::clamp_effort。千问 3.8+ 走自己的档位表。
+            if let Some(eff) =
+                qwen_effort.or_else(|| super::providers::clamp_effort(&req.model, effort))
+            {
                 body.insert("reasoning_effort".into(), json!(eff));
             }
         }
         ThinkingMode::EnableThinking => {
-            if !effort.is_empty() {
+            if let Some(eff) = qwen_effort {
+                body.insert("reasoning_effort".into(), json!(eff));
+            } else if !effort.is_empty() {
+                body.insert("enable_thinking".into(), json!(true));
+            }
+        }
+        // 千问按模型代次分流（见 providers::is_qwen_effort_model）：
+        //   - 3.8 代起「始终思考」：发 reasoning_effort（关闭显式发 none）。
+        //     不发 thinking_budget：上游规定二者**互斥**，同时给会 400。
+        //   - 3.7 及更早「混合思考」：仍发布尔 enable_thinking（需流式，我们本就全程流式）。
+        ThinkingMode::QwenThinking => {
+            if let Some(eff) = qwen_effort {
+                body.insert("reasoning_effort".into(), json!(eff));
+            } else if !effort.is_empty() {
                 body.insert("enable_thinking".into(), json!(true));
             }
         }
@@ -456,6 +492,125 @@ mod tests {
         assert_eq!(mk("max")["reasoning_effort"], "max");
         // GLM-5.3 的 thinking 只能开启，始终显式带 thinking 对象。
         assert_eq!(mk("low")["thinking"]["type"], "enabled");
+    }
+
+    #[test]
+    fn qwen_3_8_sends_reasoning_effort_only() {
+        let mk = |model: &str, e: Option<&str>| {
+            let mut req = LlmRequest::new(model, vec![ChatMessage::user("hi")]);
+            req.reasoning_effort = e.map(str::to_string);
+            build_request_body(&req, ThinkingMode::QwenThinking)
+        };
+        // 3.8 系：上游允许集 none/minimal/low/medium/high/xhigh/max 逐个透传（实测均 200）；
+        // 不发 enable_thinking（上游不认）。
+        for eff in ["none", "minimal", "low", "medium", "high", "xhigh", "max"] {
+            let b = mk("qwen3.8-max", Some(eff));
+            assert_eq!(b["reasoning_effort"], eff, "{eff} 应原样透传");
+            assert!(b.get("enable_thinking").is_none(), "{eff}");
+            assert!(
+                b.get("thinking_budget").is_none(),
+                "{eff}: 与 reasoning_effort 互斥，不得同发"
+            );
+        }
+        // 集外的值钳到 xhigh，避免被上游 400。
+        assert_eq!(
+            mk("qwen3.8-max", Some("bogus"))["reasoning_effort"],
+            "xhigh"
+        );
+        // 3.8 系默认开着思考，UI 的「关闭」必须显式发 none 才真的关掉。
+        assert_eq!(mk("qwen3.8-max", None)["reasoning_effort"], "none");
+        assert_eq!(mk("qwen3.8-max", Some(""))["reasoning_effort"], "none");
+    }
+
+    #[test]
+    fn qwen_3_7_and_older_still_use_enable_thinking() {
+        let mk = |model: &str, e: Option<&str>| {
+            let mut req = LlmRequest::new(model, vec![ChatMessage::user("hi")]);
+            req.reasoning_effort = e.map(str::to_string);
+            build_request_body(&req, ThinkingMode::QwenThinking)
+        };
+        // 混合思考模型：开=发布尔 enable_thinking，不带强度；关=不发（沿用上游默认）。
+        for m in ["qwen3.7-max", "qwen3.7-plus", "qwen3.6-flash", "qwen-plus"] {
+            let b = mk(m, Some("xhigh"));
+            assert_eq!(b["enable_thinking"], true, "{m}");
+            assert!(b.get("reasoning_effort").is_none(), "{m}");
+            let off = mk(m, None);
+            assert!(off.get("enable_thinking").is_none(), "{m}");
+            assert!(off.get("reasoning_effort").is_none(), "{m}");
+        }
+    }
+
+    #[test]
+    fn qwen_3_8_also_works_via_byok_reasoning_effort_mode() {
+        // BYOK（openai-compatible 预设）用的是 ReasoningEffort 模式，但模型仍是 qwen3.8-max：
+        // 必须按千问的档位表翻译，否则 xhigh/max 被 clamp_effort 砍到 high（天花板表里没 qwen）、
+        // 「关闭」发不出 none（3.8 系默认开着思考，于是关不掉）。
+        let mk = |model: &str, e: Option<&str>| {
+            let mut req = LlmRequest::new(model, vec![ChatMessage::user("hi")]);
+            req.reasoning_effort = e.map(str::to_string);
+            build_request_body(&req, ThinkingMode::ReasoningEffort)
+        };
+        for eff in ["none", "minimal", "low", "medium", "high", "xhigh", "max"] {
+            assert_eq!(
+                mk("qwen3.8-max", Some(eff))["reasoning_effort"],
+                eff,
+                "{eff} 应原样透传"
+            );
+        }
+        assert_eq!(mk("qwen3.8-max", None)["reasoning_effort"], "none");
+        // 非千问模型不受影响，仍按各自天花板钳。
+        assert_eq!(mk("gpt-5.1", Some("xhigh"))["reasoning_effort"], "high");
+        assert_eq!(mk("gpt-5.6-sol", Some("max"))["reasoning_effort"], "max");
+        assert!(mk("gpt-5.1", None).get("reasoning_effort").is_none());
+    }
+
+    #[test]
+    fn qwen_model_on_vendor_specific_modes_is_left_alone() {
+        // 火山 / Kimi / DeepSeek·GLM 的参数形状是厂商专属的。把 qwen 模型指到那些预设属配置错误：
+        // 宁可让上游报错，也不要静默改写成千问的档位表（否则排错时看到的是一个不像自己配的请求）。
+        let mut req = LlmRequest::new("qwen3.8-max", vec![ChatMessage::user("hi")]);
+        req.reasoning_effort = Some("xhigh".into());
+
+        // 火山：仍按自己的四档钳（xhigh → high），关闭仍显式 minimal。
+        let b = build_request_body(&req, ThinkingMode::ReasoningEffortMinimal);
+        assert_eq!(b["reasoning_effort"], "high");
+
+        // Kimi：仍是 thinking 对象开关，不带档位。
+        let b = build_request_body(&req, ThinkingMode::ThinkingObjectToggle);
+        assert_eq!(b["thinking"]["type"], "enabled");
+        assert!(b.get("reasoning_effort").is_none());
+
+        // DeepSeek·GLM：thinking 对象 + 各自档位表（xhigh → high）。
+        let b = build_request_body(&req, ThinkingMode::ThinkingEnabledEffort);
+        assert_eq!(b["thinking"]["type"], "enabled");
+        assert_eq!(b["reasoning_effort"], "high");
+    }
+
+    #[test]
+    fn qwen_3_8_in_enable_thinking_mode_prefers_effort_level() {
+        // 万一用户把 qwen 覆盖成 enable_thinking（或历史配置），3.8 系仍要走 reasoning_effort：
+        // enable_thinking 对 3.8 系会被上游 400 打回。3.7 及更早保持原样。
+        let mut req = LlmRequest::new("qwen3.8-max", vec![ChatMessage::user("hi")]);
+        req.reasoning_effort = Some("low".into());
+        let b = build_request_body(&req, ThinkingMode::EnableThinking);
+        assert_eq!(b["reasoning_effort"], "low");
+        assert!(b.get("enable_thinking").is_none());
+
+        let mut old = LlmRequest::new("qwen3.7-max", vec![ChatMessage::user("hi")]);
+        old.reasoning_effort = Some("low".into());
+        let b = build_request_body(&old, ThinkingMode::EnableThinking);
+        assert_eq!(b["enable_thinking"], true);
+        assert!(b.get("reasoning_effort").is_none());
+    }
+
+    #[test]
+    fn thinking_none_never_sends_qwen_effort() {
+        // ThinkingMode::None = 明确声明不发任何思考参数，即便是 qwen3.8 也不例外。
+        let mut req = LlmRequest::new("qwen3.8-max", vec![ChatMessage::user("hi")]);
+        req.reasoning_effort = Some("xhigh".into());
+        let b = build_request_body(&req, ThinkingMode::None);
+        assert!(b.get("reasoning_effort").is_none());
+        assert!(b.get("enable_thinking").is_none());
     }
 
     #[test]
