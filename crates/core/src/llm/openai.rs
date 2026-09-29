@@ -59,11 +59,12 @@ pub fn build_request_body(req: &LlmRequest, thinking: ThinkingMode) -> Value {
                 body.insert("enable_thinking".into(), json!(true));
             }
         }
-        // DeepSeek V4 等：思考开关用对象、强度仍走 reasoning_effort，两者一起发。
-        // DeepSeek 思考强度只有 high / max 两档：max 保留，其余一律按 high（避免非法档位被上游拒）。
+        // DeepSeek V4 / GLM-5.3 等：思考开关用对象、强度仍走 reasoning_effort，两者一起发。
+        // 强度天花板按模型分（见 providers::thinking_enabled_effort_level）：DeepSeek 只有
+        // high / max，GLM-5.3 系只有 low / high / max（medium→high、xhigh→max）。
         ThinkingMode::ThinkingEnabledEffort => {
             if !effort.is_empty() {
-                let eff = if effort == "max" { "max" } else { "high" };
+                let eff = super::providers::thinking_enabled_effort_level(&req.model, effort);
                 body.insert("thinking".into(), json!({ "type": "enabled" }));
                 body.insert("reasoning_effort".into(), json!(eff));
             }
@@ -437,6 +438,23 @@ mod tests {
         assert_eq!(mk("medium")["reasoning_effort"], "high");
         assert_eq!(mk("xhigh")["reasoning_effort"], "high");
         // 始终带 thinking 对象开关。
+        assert_eq!(mk("low")["thinking"]["type"], "enabled");
+    }
+
+    #[test]
+    fn glm_5_3_effort_low_high_max_mapping() {
+        let mk = |e: &str| {
+            let mut req = LlmRequest::new("GLM-5.3-FLASH", vec![ChatMessage::user("hi")]);
+            req.reasoning_effort = Some(e.into());
+            build_request_body(&req, ThinkingMode::ThinkingEnabledEffort)
+        };
+        // GLM-5.3 系只有 low / high / max：medium→high、xhigh→max，low/max 保留。
+        assert_eq!(mk("low")["reasoning_effort"], "low");
+        assert_eq!(mk("medium")["reasoning_effort"], "high");
+        assert_eq!(mk("high")["reasoning_effort"], "high");
+        assert_eq!(mk("xhigh")["reasoning_effort"], "max");
+        assert_eq!(mk("max")["reasoning_effort"], "max");
+        // GLM-5.3 的 thinking 只能开启，始终显式带 thinking 对象。
         assert_eq!(mk("low")["thinking"]["type"], "enabled");
     }
 

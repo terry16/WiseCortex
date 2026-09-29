@@ -137,6 +137,25 @@ pub fn clamp_effort(model: &str, effort: &str) -> Option<&'static str> {
     Some(EFFORT_LADDER[want.min(cap)])
 }
 
+/// [`ThinkingMode::ThinkingEnabledEffort`]（`thinking:{enabled}` + `reasoning_effort` 一起发）的
+/// 强度档位映射，天花板按模型区分：
+///   - DeepSeek V4：只有 high / max —— max 保留，其余一律按 high。
+///   - GLM-5.3 系：只有 low / high / max —— medium→high、xhigh→max、low/max 保留
+///     （对齐智谱文档；5.2 系收到后由上游自行映射，无需区分小版本）。
+pub fn thinking_enabled_effort_level(model: &str, effort: &str) -> &'static str {
+    if model.to_ascii_lowercase().contains("glm-5") {
+        match effort {
+            "low" => "low",
+            "xhigh" | "max" => "max",
+            _ => "high",
+        }
+    } else if effort == "max" {
+        "max"
+    } else {
+        "high"
+    }
+}
+
 /// 全部内置预设。BYOK 自定义端点不在此列。
 pub const PRESETS: &[Provider] = &[
     Provider {
@@ -286,12 +305,13 @@ pub const PRESETS: &[Provider] = &[
         name: "智谱 (GLM)",
         base_url: "https://open.bigmodel.cn/api/paas/v4",
         format: WireFormat::OpenAi,
-        // GLM 与 Kimi 同样用 thinking:{type:enabled|disabled} 开关（无强度档）。
-        thinking: ThinkingMode::ThinkingObjectToggle,
-        default_model: "glm-5.2",
-        models: &["glm-5.2", "glm-5.1"],
-        // glm-5.2 与 glm-5.1 均为多模态，支持图片输入。
-        vision_models: &["glm-5.2", "glm-5.1"],
+        // GLM-5.3 起 thinking 只能开启，强度改由 reasoning_effort 控制（low/high/max 三档），
+        // 与 DeepSeek V4 同款表达；旧 5.2/5.1 收到此参数由上游自行映射，无副作用。
+        thinking: ThinkingMode::ThinkingEnabledEffort,
+        default_model: "glm-5.3",
+        models: &["glm-5.3", "glm-5.3-flash", "glm-5.2", "glm-5.1"],
+        // glm-5.3-flash 与 glm-5.2/5.1 均为多模态，支持图片输入。
+        vision_models: &["glm-5.3-flash", "glm-5.2", "glm-5.1"],
     },
     Provider {
         id: "xai",
@@ -583,6 +603,24 @@ mod tests {
             get("deepseek").unwrap().thinking,
             ThinkingMode::ThinkingEnabledEffort
         );
+
+        // GLM-5.3 起与 DeepSeek 同款：thinking 对象开关 + reasoning_effort 强度。
+        assert_eq!(
+            get("zhipu").unwrap().thinking,
+            ThinkingMode::ThinkingEnabledEffort
+        );
+    }
+
+    #[test]
+    fn thinking_enabled_effort_level_by_model() {
+        // DeepSeek：只有 high / max。
+        assert_eq!(thinking_enabled_effort_level("deepseek-v4", "max"), "max");
+        assert_eq!(thinking_enabled_effort_level("deepseek-v4", "low"), "high");
+        // GLM-5.3 系：low / high / max，medium→high、xhigh→max；大小写不敏感。
+        assert_eq!(thinking_enabled_effort_level("GLM-5.3-FLASH", "low"), "low");
+        assert_eq!(thinking_enabled_effort_level("glm-5.3", "medium"), "high");
+        assert_eq!(thinking_enabled_effort_level("glm-5.3", "xhigh"), "max");
+        assert_eq!(thinking_enabled_effort_level("glm-5.3", "max"), "max");
     }
 
     #[test]
