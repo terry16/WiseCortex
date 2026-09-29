@@ -295,7 +295,7 @@ export const en = {
   // settings — reasoning effort
   "settings.effort.title": "Reasoning effort (extended thinking)",
   "settings.effort.sub":
-    "Let the model think more before answering — steadier on complex tasks / hard bugs; increases latency and cost. Auto-translated per provider: Anthropic uses thinking, OpenAI/Gemini use reasoning_effort, Qwen/Hunyuan use enable_thinking; models with built-in thinking (e.g. DeepSeek) send no parameter.",
+    "Let the model think more before answering — steadier on complex tasks / hard bugs; increases latency and cost. Auto-translated per provider: Anthropic uses thinking, OpenAI/Gemini/Hunyuan use reasoning_effort, Qwen 3.8+ uses reasoning_effort (3.7 and earlier use enable_thinking), Kimi/DeepSeek/GLM use a thinking object; some models think internally and take no parameter.",
   "settings.effort.label": "Effort",
   "settings.effort.off": "Off (default)",
   "settings.effort.xhigh": "xhigh (coding sweet spot)",
@@ -442,7 +442,7 @@ export const en = {
   "settings.modal.effortDefault": "(follow global default)",
   "settings.modal.effortOff": "Off",
   "settings.modal.effortHint":
-    "Applies to this model only, overriding global. Auto-translated per provider (Anthropic→thinking, OpenAI/Gemini→reasoning_effort, Qwen/Hunyuan→enable_thinking; models with built-in thinking like DeepSeek send no parameter, so this has no effect). “Off” = this model doesn't think; “follow global default” = use the global reasoning effort above.",
+    "Applies to this model only, overriding global. Auto-translated per provider (Anthropic→thinking, OpenAI/Gemini/Hunyuan→reasoning_effort, Qwen 3.8+→reasoning_effort, Qwen 3.7 and earlier→enable_thinking, Kimi/DeepSeek/GLM→thinking object; models that think internally take no parameter, so this has no effect). “Off” = this model doesn't think; “follow global default” = use the global reasoning effort above.",
   "settings.modal.test": "Test connection",
   "settings.modal.baseHintPreset":
     "Preset endpoint filled in — edit it to point at a proxy or self-hosted gateway",

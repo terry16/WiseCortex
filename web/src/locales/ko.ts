@@ -291,7 +291,7 @@ export const ko = {
   // settings — reasoning effort
   "settings.effort.title": "추론 강도(extended thinking)",
   "settings.effort.sub":
-    "답하기 전에 모델이 더 생각하게 합니다 — 복잡한 작업/까다로운 버그에서 더 안정적이지만 시간과 비용이 늘어납니다. 제공자별 자동 변환: Anthropic은 thinking, OpenAI/Gemini는 reasoning_effort, Qwen/Hunyuan은 enable_thinking; DeepSeek 등 사고가 내장된 모델은 매개변수를 보내지 않습니다.",
+    "답하기 전에 모델이 더 생각하게 합니다 — 복잡한 작업/까다로운 버그에서 더 안정적이지만 시간과 비용이 늘어납니다. 제공자별 자동 변환: Anthropic은 thinking, OpenAI/Gemini/혼원은 reasoning_effort, Qwen 3.8+는 reasoning_effort(3.7 이전은 enable_thinking), Kimi/DeepSeek/GLM은 thinking 객체로 변환. 일부 모델은 사고가 내장되어 이 매개변수를 받지 않습니다.",
   "settings.effort.label": "강도",
   "settings.effort.off": "끔(기본)",
   "settings.effort.xhigh": "xhigh(코딩 최적점)",
@@ -437,7 +437,7 @@ export const ko = {
   "settings.modal.effortDefault": "(전역 기본값 따름)",
   "settings.modal.effortOff": "끔",
   "settings.modal.effortHint":
-    "이 모델에만 적용되어 전역을 재정의합니다. 제공자별 자동 변환(Anthropic→thinking, OpenAI/Gemini→reasoning_effort, Qwen/Hunyuan→enable_thinking; DeepSeek 등 사고 내장 모델은 매개변수를 보내지 않아 무효). “끔” = 이 모델은 사고하지 않음; “전역 기본값 따름” = 위의 전역 추론 강도 사용.",
+    "이 모델에만 적용되어 전역을 재정의합니다. 제공자별 자동 변환(Anthropic→thinking, OpenAI/Gemini/혼원→reasoning_effort, Qwen 3.8+→reasoning_effort(3.7 이전→enable_thinking), Kimi/DeepSeek/GLM→thinking 객체. 사고가 내장된 모델은 이 매개변수를 받지 않아 무효). “끔” = 이 모델은 사고하지 않음; “전역 기본값 따름” = 위의 전역 추론 강도 사용.",
   "settings.modal.test": "연결 테스트",
   "settings.modal.baseHintPreset":
     "프리셋 엔드포인트가 입력됨 — 프록시나 자체 게이트웨이 주소로 바꿀 수 있습니다",

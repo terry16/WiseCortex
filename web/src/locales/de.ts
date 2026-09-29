@@ -305,7 +305,7 @@ export const de = {
   // settings — reasoning effort
   "settings.effort.title": "Denkaufwand (extended thinking)",
   "settings.effort.sub":
-    "Lässt das Modell vor der Antwort mehr nachdenken — stabiler bei komplexen Aufgaben / kniffligen Bugs; erhöht Dauer und Kosten. Automatisch je Anbieter übersetzt: Anthropic nutzt thinking, OpenAI/Gemini reasoning_effort, Qwen/Hunyuan enable_thinking; Modelle mit eingebautem Denken (z. B. DeepSeek) senden keinen Parameter.",
+    "Lässt das Modell vor der Antwort mehr nachdenken — stabiler bei komplexen Aufgaben / kniffligen Bugs; erhöht Dauer und Kosten. Automatisch je Anbieter übersetzt: Anthropic nutzt thinking, OpenAI/Gemini/Hunyuan reasoning_effort, Qwen 3.8+ reasoning_effort (3.7 und älter enable_thinking), Kimi/DeepSeek/GLM ein thinking-Objekt; manche Modelle denken intern und nehmen den Parameter nicht.",
   "settings.effort.label": "Aufwand",
   "settings.effort.off": "Aus (Standard)",
   "settings.effort.xhigh": "xhigh (idealer Wert fürs Coden)",
@@ -457,7 +457,7 @@ export const de = {
   "settings.modal.effortDefault": "(globalem Standard folgen)",
   "settings.modal.effortOff": "Aus",
   "settings.modal.effortHint":
-    "Gilt nur für dieses Modell und überschreibt global. Automatisch je Anbieter übersetzt (Anthropic→thinking, OpenAI/Gemini→reasoning_effort, Qwen/Hunyuan→enable_thinking; Modelle mit eingebautem Denken wie DeepSeek senden keinen Parameter, daher ohne Wirkung). „Aus“ = dieses Modell denkt nicht; „globalem Standard folgen“ = den globalen Denkaufwand oben verwenden.",
+    "Gilt nur für dieses Modell und überschreibt global. Automatisch je Anbieter übersetzt (Anthropic→thinking, OpenAI/Gemini/Hunyuan→reasoning_effort, Qwen 3.8+→reasoning_effort, Qwen 3.7 und älter→enable_thinking, Kimi/DeepSeek/GLM→thinking-Objekt; Modelle mit internem Denken nehmen den Parameter nicht, daher ohne Wirkung). „Aus“ = dieses Modell denkt nicht; „globalem Standard folgen“ = den globalen Denkaufwand oben verwenden.",
   "settings.modal.test": "Verbindung testen",
   "settings.modal.baseHintPreset":
     "Voreingestellter Endpunkt eingetragen — auf Proxy oder eigenes Gateway änderbar",

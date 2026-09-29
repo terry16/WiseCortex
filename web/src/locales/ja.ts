@@ -293,7 +293,7 @@ export const ja = {
   // settings — reasoning effort
   "settings.effort.title": "推論強度（extended thinking）",
   "settings.effort.sub":
-    "回答前にモデルをより深く考えさせます——複雑なタスクや難しいバグで安定しますが、所要時間とコストが増えます。プロバイダーごとに自動変換：Anthropic は thinking、OpenAI/Gemini は reasoning_effort、Qwen/Hunyuan は enable_thinking。DeepSeek など思考が組み込まれたモデルはパラメータを送りません。",
+    "回答前にモデルをより深く考えさせます——複雑なタスクや難しいバグで安定しますが、所要時間とコストが増えます。プロバイダーごとに自動変換：Anthropic は thinking、OpenAI/Gemini は reasoning_effort、Qwen 3.8+ は reasoning_effort（3.7 以前は enable_thinking）、Kimi/DeepSeek/GLM は thinking オブジェクトに変換。モデルによっては思考が組み込まれており、このパラメータを受け付けません。",
   "settings.effort.label": "強度",
   "settings.effort.off": "オフ（既定）",
   "settings.effort.xhigh": "xhigh（コーディングの最適点）",
@@ -443,7 +443,7 @@ export const ja = {
   "settings.modal.effortDefault": "（グローバル既定に従う）",
   "settings.modal.effortOff": "オフ",
   "settings.modal.effortHint":
-    "このモデルのみに適用され、グローバルを上書きします。プロバイダーごとに自動変換（Anthropic→thinking、OpenAI/Gemini→reasoning_effort、Qwen/Hunyuan→enable_thinking。DeepSeek など思考が組み込まれたモデルはパラメータを送らないため無効）。「オフ」=このモデルは思考しない。「グローバル既定に従う」=上のグローバル推論強度を使用。",
+    "このモデルのみに適用され、グローバルを上書きします。プロバイダーごとに自動変換（Anthropic→thinking、OpenAI/Gemini→reasoning_effort、Qwen 3.8+→reasoning_effort（3.7 以前→enable_thinking）、Kimi/DeepSeek/GLM→thinking オブジェクト。思考が組み込まれたモデルはこのパラメータを受け付けないため無効）。「オフ」=このモデルは思考しない。「グローバル既定に従う」=上のグローバル推論強度を使用。",
   "settings.modal.test": "接続テスト",
   "settings.modal.baseHintPreset":
     "プリセットのエンドポイントを入力済み。プロキシや自建ゲートウェイに変更できます",

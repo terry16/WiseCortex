@@ -280,7 +280,7 @@ export const zhCN = {
   // settings — reasoning effort
   "settings.effort.title": "推理强度（extended thinking）",
   "settings.effort.sub":
-    "让模型多想再答，复杂任务/疑难 bug 更稳；会增加耗时与成本。按提供商自动翻译：Anthropic 走 thinking，OpenAI/Gemini 走 reasoning_effort，千问/混元走 enable_thinking；DeepSeek 等思考内置的模型不发参数。",
+    "让模型多想再答，复杂任务/疑难 bug 更稳；会增加耗时与成本。按提供商自动翻译：Anthropic 走 thinking，OpenAI/Gemini/混元走 reasoning_effort，千问 3.8+ 走 reasoning_effort（3.7 及更早走 enable_thinking），Kimi/DeepSeek/GLM 走 thinking 对象；部分模型思考内置、不吃此参数。",
   "settings.effort.label": "强度",
   "settings.effort.off": "关闭（默认）",
   "settings.effort.xhigh": "xhigh（写码甜点档）",
@@ -418,7 +418,7 @@ export const zhCN = {
   "settings.modal.effortDefault": "（跟随全局默认）",
   "settings.modal.effortOff": "关闭",
   "settings.modal.effortHint":
-    "仅对该模型生效，覆盖全局。按提供商自动翻译（Anthropic→thinking，OpenAI/Gemini→reasoning_effort，千问/混元→enable_thinking；DeepSeek 等内置思考的模型不发参数，此项无效）。「关闭」=该模型不思考；「跟随全局默认」=用上方全局推理强度。",
+    "仅对该模型生效，覆盖全局。按提供商自动翻译（Anthropic→thinking，OpenAI/Gemini/混元→reasoning_effort，千问 3.8+→reasoning_effort、3.7 及更早→enable_thinking，Kimi/DeepSeek/GLM→thinking 对象；思考内置的模型不吃此参数，此项无效）。「关闭」=该模型不思考；「跟随全局默认」=用上方全局推理强度。",
   "settings.modal.test": "测试连接",
   "settings.modal.baseHintPreset": "已填入预设端点，可改成反代或自建网关地址",
   "settings.modal.baseHintCompat": "OpenAI 兼容端点，请自填，如 http://localhost:8000/v1",

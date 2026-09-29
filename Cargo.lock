@@ -6123,7 +6123,7 @@ dependencies = [
 
 [[package]]
 name = "wisecortex-cli"
-version = "0.9.19"
+version = "0.9.20"
 dependencies = [
  "clap",
  "crossterm",
@@ -6138,7 +6138,7 @@ dependencies = [
 
 [[package]]
 name = "wisecortex-core"
-version = "0.9.19"
+version = "0.9.20"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -6175,7 +6175,7 @@ dependencies = [
 
 [[package]]
 name = "wisecortex-desktop"
-version = "0.9.19"
+version = "0.9.20"
 dependencies = [
  "tauri",
  "tauri-build",
@@ -6190,7 +6190,7 @@ dependencies = [
 
 [[package]]
 name = "wisecortex-server"
-version = "0.9.19"
+version = "0.9.20"
 dependencies = [
  "axum",
  "futures-util",
