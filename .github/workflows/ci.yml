@@ -19,7 +19,32 @@ jobs:
       # 不含 desktop（Tauri 需 webkit 系统依赖，仅 mac/win 构建）。
       - run: cargo fmt --all --check
       - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo test
+      - name: Run cargo test
+        # 落一份日志：Actions 的 job 日志**必须登录**才能看（public 仓库也一样，
+        # 匿名取 logs 端点一律 403），而 annotation / job summary 是公开可读的。
+        # 失败时把摘要发到那两个通道，排查才不必先找一个有权限的人。
+        #
+        # ⚠️ 这里**不要**写 `shell: bash`。Linux 上默认（不下发 shell）是
+        # `bash --noprofile --norc -e -o pipefail`，而显式 `shell: bash` 会被 runner
+        # 映射成 `bash -e`（见 ScriptHandler：shell=="bash" 时取 "sh" 的参数表），
+        # **丢掉 pipefail** —— 管道退出码就只看末端的 `tee`（恒为 0），
+        # cargo test 失败会被静默放行。默认已带 pipefail，保持不写最安全。
+        run: cargo test 2>&1 | tee /tmp/cargo-test.log
+      - name: 失败时把测试摘要发成公开可读的 annotation
+        if: failure()
+        run: |
+          hits() { grep -E "$1" /tmp/cargo-test.log || true; }
+          {
+            echo '## cargo test 失败摘要'
+            echo '完整 job 日志需登录才能看，这里把关键行公开出来。'
+            echo '```'
+            hits 'FAILED|panicked at|assertion|test result:|^---- |left:|right:|got:|error\[' | head -80
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # annotation 有 10 条上限，故合成一条；换行要编成 %0A、% 先转义成 %25。
+          line=$(hits 'FAILED|panicked at|assertion|test result:' \
+            | head -40 | sed 's/%/%25/g' | tr -d '\r' | awk 'BEGIN{ORS="%0A"}1')
+          echo "::error::cargo test 失败（完整日志需登录）: ${line:-未能从日志里抓到失败行}"
 
   # macOS：GUI 控制是平台专属代码，ubuntu 那个 job 根本编译不到 mac_gui
   # （#[cfg(target_os = "macos")] 整个模块被跳过）。没有这个 job，AX/CGEvent 的

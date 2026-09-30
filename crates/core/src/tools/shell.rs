@@ -1171,7 +1171,11 @@ mod tests {
             }
             std::thread::sleep(Duration::from_millis(50));
         }
-        assert!(dead, "孙进程 pid={gpid} 应随进程树一起被杀，否则仍是孤儿");
+        assert!(
+            dead,
+            "孙进程 pid={gpid} 应随进程树一起被杀，否则仍是孤儿（实际状态：{}）",
+            state_desc(gpid)
+        );
 
         drop_session(&key);
         std::fs::remove_file(&pidfile).ok();
@@ -1273,7 +1277,9 @@ mod tests {
             assert!(
                 dead,
                 "第 {round} 轮：孙进程 pid={gpid} 应随进程树一起被杀——\
-                 若按共享的 cancel.pid 杀树，就会杀到输家的进程、留下这个孤儿"
+                 若按共享的 cancel.pid 杀树，就会杀到输家的进程、留下这个孤儿\
+                 （实际状态：{}）",
+                state_desc(gpid)
             );
 
             drop_session(&key);
@@ -1281,7 +1287,39 @@ mod tests {
         }
     }
 
-    /// 某 pid 是否仍在跑（跨平台）。
+    /// Unix：取进程的状态字母（`R`/`S`/`D`/`Z`…）；拿不到返回 `None`。
+    ///
+    /// 为什么不能只靠 `kill -0`：它对**僵尸**（Z，已死但还没被父进程 wait 回收）
+    /// 照样返回成功。我们杀的孙进程，其父（会话 bash）也同时被杀了，孤儿没人 reap
+    /// 就会长期停在僵尸态——用 `kill -0` 探就会把「已杀掉」误判成「还活着」。
+    fn proc_state(pid: u32) -> Option<char> {
+        #[cfg(target_os = "linux")]
+        {
+            // /proc/<pid>/stat 第 3 个字段是状态字母。comm（第 2 字段）可能含空格和
+            // 括号，所以要从**最后一个** ')' 之后再切，不能按空格直接取第 3 列。
+            let s = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+            let (_, rest) = s.rsplit_once(')')?;
+            rest.trim().chars().next()
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            // macOS 等没有 /proc：问 ps 要状态列。进程不存在时 ps 返回非 0。
+            let out = Command::new("ps")
+                .args(["-o", "state=", "-p", &pid.to_string()])
+                .output()
+                .ok()?;
+            if !out.status.success() {
+                return None;
+            }
+            String::from_utf8_lossy(&out.stdout).trim().chars().next()
+        }
+    }
+
+    /// 某 pid 是否**仍在跑**（跨平台）。
+    ///
+    /// 僵尸不算在跑：它已死、FD 已释放，只是没人 wait 回收。判定分两步而不是一步，
+    /// 是为了 macOS 零回归：`ps` 万一拿不到状态（None）就退回「存在即在跑」的老语义，
+    /// 绝不会把活进程误判成死。
     fn pid_alive(pid: u32) -> bool {
         if cfg!(windows) {
             let mut c = Command::new("tasklist");
@@ -1292,11 +1330,29 @@ mod tests {
                 .unwrap_or(false)
         } else {
             // kill -0 不发信号，只探测存在性与权限。
-            Command::new("kill")
+            let exists = Command::new("kill")
                 .args(["-0", &pid.to_string()])
                 .status()
                 .map(|s| s.success())
-                .unwrap_or(false)
+                .unwrap_or(false);
+            exists && proc_state(pid) != Some('Z')
+        }
+    }
+
+    /// 把进程状态说人话，供断言失败时自证：
+    /// 分清「真的还活着」和「已死但成了僵尸没人 reap」——这两者的处置完全相反。
+    fn state_desc(pid: u32) -> String {
+        if cfg!(windows) {
+            return if pid_alive(pid) {
+                "存活".to_string()
+            } else {
+                "不存在".to_string()
+            };
+        }
+        match proc_state(pid) {
+            None => "不存在（已回收）".to_string(),
+            Some('Z') => "Z 僵尸（已死，只是没人 wait 回收）".to_string(),
+            Some(c) => format!("{c} 存活"),
         }
     }
 }
