@@ -273,16 +273,26 @@ impl SessionRegistry {
     }
 
     /// 中断运行中的任务，返回是否确实中断了某任务。
+    ///
     /// 「停止」语义：连同排队中的消息一并清空、复位抽干标记（否则被 abort 的抽干循环不会复位，
     /// 队列会卡死、后续消息再也抽不动）。
+    ///
+    /// 为什么光 `abort()` 不够（真实故障：用户点「停止」停不下来）：工具跑在
+    /// `spawn_blocking` 的阻塞线程里，而 tokio 的 abort 只能取消 async 任务、**动不了已经在跑的
+    /// 阻塞线程**（实测 abort 返回后阻塞线程照样跑完）。所以一条正在执行的 shell 命令必须
+    /// 另外走协作式取消：`shell::cancel(sid)` 推进代际号并杀掉整棵进程树，阻塞线程随管道断开
+    /// 立即返回。两者缺一不可——只 abort 则命令继续跑；只 cancel shell 则 LLM 调用继续烧钱。
     pub fn interrupt(&self, id: &str) -> bool {
         self.pending.lock().unwrap().remove(id);
-        if let Some(h) = self.running.lock().unwrap().remove(id) {
+        // 先取消 shell（sid 即持久会话的 key）：命令一死，阻塞线程才会从工具里返回。
+        let shell_cancelled = wisecortex_core::tools::shell::cancel(id);
+        let aborted = if let Some(h) = self.running.lock().unwrap().remove(id) {
             h.abort();
             true
         } else {
             false
-        }
+        };
+        shell_cancelled || aborted
     }
 
     /// 入队一条「工作中发来的消息」。返回 true 表示当前空闲、应由调用方启动「抽干循环」
@@ -1162,5 +1172,61 @@ mod tests {
             reg.enqueue_message("s", qmsg("m3")),
             "停止后应能重新触发抽干"
         );
+    }
+
+    /// 端到端：`interrupt(sid)` 必须能停掉**该 sid 的持久 shell 里正在跑的长命令**。
+    ///
+    /// 这一条钉住的是 server 侧的接线，而不只是 core 里的取消机制。链路两端靠一个约定串起来：
+    /// `Agent::tools_for(.., sid, ..)` 用 `with_persistent_shell(base, sid)` 注册工具，
+    /// 于是持久 shell 的 key **就是** sid；`ws.rs` 收到停止后调 `interrupt(&sid)`。
+    /// 两边一旦对不上（比如哪天 key 改成 `sid+workdir` 之类），core 的取消测试照样全绿，
+    /// 用户点「停止」却又不生效——所以必须在这里跨 crate 验一次。
+    ///
+    /// 另外：工具跑在 `spawn_blocking` 的阻塞线程里，tokio 的 `abort()` 取消不了它，
+    /// 只有 `shell::cancel` 这条路能停住，本测试也正是只走这条路（没有 running handle）。
+    #[test]
+    fn interrupt_stops_long_running_shell_command() {
+        use wisecortex_core::tools::ToolRegistry;
+
+        let sid = format!("test-e2e-interrupt-{}", std::process::id());
+        let base = std::env::temp_dir();
+        // 与 Agent::tools_for 同构：持久 shell 的 key 就是 sid。
+        let tools =
+            ToolRegistry::with_defaults(base.clone()).with_persistent_shell(base.clone(), &sid);
+
+        // 预热：先建好会话，把建会话的耗时排除在外。
+        tools
+            .execute("shell", &serde_json::json!({ "command": "echo warmup" }))
+            .unwrap();
+
+        let long_cmd = if cfg!(windows) {
+            "ping 127.0.0.1 -n 121 >nul"
+        } else {
+            "sleep 120"
+        };
+        let runner = std::thread::spawn(move || {
+            tools.execute(
+                "shell",
+                &serde_json::json!({ "command": long_cmd, "timeout_ms": 120_000 }),
+            )
+        });
+
+        // 命令跑起来后，走用户在 UI 上点「停止」的同一条路径。
+        let reg = SessionRegistry::new();
+        let mut stopped = false;
+        for _ in 0..200 {
+            std::thread::sleep(std::time::Duration::from_millis(25));
+            if reg.interrupt(&sid) {
+                stopped = true;
+                break;
+            }
+        }
+        assert!(stopped, "interrupt(sid) 应命中该 sid 的持久 shell");
+
+        let err = runner
+            .join()
+            .expect("执行线程不应 panic")
+            .expect_err("被中断的命令应返回 Err");
+        assert!(err.contains("中断"), "应报「中断」而非超时: {err}");
     }
 }

@@ -17,3 +17,18 @@ pub fn no_window(cmd: &mut std::process::Command) -> &mut std::process::Command 
     }
     cmd
 }
+
+/// 让子进程自成一个进程组组长（Unix），以便「杀整个进程树」；Windows 上是空操作
+/// （那边用 `taskkill /T` 按父子关系遍历，不需要进程组）。
+///
+/// 为什么需要：`child.kill()` 只杀直接子进程。shell 会话的子进程是 cmd/bash，它再派生
+/// 的孙进程（python / node / ssh …）不会跟着死，于是「命令已终止」之后进程还在后台跑、
+/// 端口还被占着。把会话设为组长后，`kill(-pgid)` 能一次端掉整棵树。
+pub fn own_process_group(cmd: &mut std::process::Command) -> &mut std::process::Command {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+    cmd
+}
